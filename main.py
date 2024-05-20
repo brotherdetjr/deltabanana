@@ -11,13 +11,12 @@ from typing import Final, List, Tuple, Any
 
 import pathlib
 import yaml
-from cachetools import TTLCache
 from dulwich import porcelain
 from dulwich.porcelain import NoneStream
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue
 
-from refreshcache import RefreshCache
+from caches import RefreshCache, LimitedTtlCache, CapacityException
 
 ICONS: Final[List[str]] = ['🇬🇧', '🇷🇺', '👂']
 
@@ -71,15 +70,6 @@ class UserState:
         self.reset()
 
 
-class CapacityException(Exception):
-    pass
-
-
-class LimitedTtlCache(TTLCache):
-    def popitem(self):
-        raise CapacityException()
-
-
 class Main:
     user_states: LimitedTtlCache[str, UserState]
     collections: RefreshCache[GitRef, List[Tuple[str]]]
@@ -98,7 +88,7 @@ class Main:
         self.collections = RefreshCache(
             load_func=self.fetch_entries,
             refresh_callback=self.on_refresh,
-            refresh_rate_seconds=config.get('collection_refresh_rate_seconds', 300)
+            refresh_rate_seconds=config.get('collection_refresh_rate_seconds', 600)
         )
         self.app = app
         logger.info('Polling...')

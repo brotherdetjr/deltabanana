@@ -2,6 +2,8 @@ import time
 from threading import Lock, Thread
 from typing import Generic, Callable, TypeVar
 
+from cachetools import TTLCache
+
 K = TypeVar("K")
 V = TypeVar("V")
 
@@ -58,3 +60,12 @@ class RefreshCache(Generic[K, V]):
         while True:
             time.sleep(self.refresh_rate_seconds)
             self.__refresh__(key)
+
+
+class LimitedTtlCache(TTLCache):
+    def popitem(self):
+        raise CapacityException()
+
+
+class CapacityException(Exception):
+    pass
