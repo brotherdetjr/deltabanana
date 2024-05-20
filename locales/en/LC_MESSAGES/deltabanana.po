@@ -1,1 +1,19 @@
-msgid ""msgstr """Language: en\n""Content-Type: text/plain; charset=UTF-8\n"msgid "Word collection has been modified externally!"msgstr "ℹ Word collection has been modified externally!"msgid "Let's rock!"msgstr "Let's rock! 🤩"msgid "No entries in collection!"msgstr "🪹 No entries in collection!"msgid "Shuffled"msgstr "🔀"msgid "The bot is busy"msgstr "✋ The bot is too busy now. Try again later!"
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Word collection has been modified externally!"
+msgstr "ℹ Word collection has been modified externally!"
+
+msgid "Let's rock!"
+msgstr "Let's rock! 🤩"
+
+msgid "No entries in collection!"
+msgstr "🪹 No entries in collection!"
+
+msgid "Shuffled"
+msgstr "🔀"
+
+msgid "The bot is busy"
+msgstr "✋ The bot is too busy now. Try again later!"
