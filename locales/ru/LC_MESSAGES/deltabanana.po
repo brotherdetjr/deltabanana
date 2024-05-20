@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Language: ru\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Word collection has been modified externally!"
+msgstr "ℹ Словарик был изменён в источнике!"
+
+msgid "Let's rock!"
+msgstr "Зажжём! 🤩"
+
+msgid "No entries in collection!"
+msgstr "🪹 Словарик пуст!"
+
+msgid "Shuffled"
+msgstr "🔀"
+
+msgid "The bot is busy"
+msgstr "✋ Бот слишком занят. Попробуйте позже!"

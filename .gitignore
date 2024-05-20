@@ -1,0 +1,4 @@
+.gitref_*
+venv
+.idea
+locales/*/LC_MESSAGES/*.mo

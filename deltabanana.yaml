@@ -1,0 +1,6 @@
+locale: ru
+collection_refresh_rate_seconds: 300
+bot_poll_interval_seconds: 2
+active_user_sessions:
+  max_count: 1000
+  inactivity_timeout_seconds: 604800
