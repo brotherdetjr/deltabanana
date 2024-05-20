@@ -19,8 +19,6 @@ from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue
 
 from refreshcache import RefreshCache
 
-TOKEN: Final[str] = os.getenv('DELTABANANA_TOKEN')
-BOT_USER: Final[str] = os.getenv('DELTABANANA_USER')
 ICONS: Final[List[str]] = ['🇬🇧', '🇷🇺', '👂']
 
 
@@ -87,12 +85,12 @@ class Main:
     collections: RefreshCache[GitRef, List[Tuple[str]]]
     app: Application
 
-    def __init__(self):
+    def __init__(self, bot_token: str):
         self.user_states = LimitedTtlCache(
             maxsize=config.get('active_user_sessions', {}).get('max_count', 1000),
             ttl=config.get('active_user_sessions', {}).get('inactivity_timeout_seconds', 604800)
         )
-        app = Application.builder().token(TOKEN).job_queue(JobQueue()).build()
+        app = Application.builder().token(bot_token).job_queue(JobQueue()).build()
         app.add_handler(CommandHandler('start', self.start_command))
         app.add_handler(CommandHandler('next', self.next_command))
         app.add_handler(CommandHandler('shuffle', self.shuffle_command))
@@ -192,4 +190,4 @@ if __name__ == '__main__':
     logger.setLevel(level=logging.INFO)
     logger.addHandler(logging.StreamHandler())
     logger.info('Starting bot...')
-    Main()
+    Main(os.getenv('DELTABANANA_TOKEN'))
