@@ -4,61 +4,61 @@ from typing import Generic, Callable, TypeVar
 
 from cachetools import TTLCache
 
-K = TypeVar("K")
-V = TypeVar("V")
+_K = TypeVar("_K")
+_V = TypeVar("_V")
 
 
-class RefreshCache(Generic[K, V]):
-    general_lock: Lock
-    locks: dict[K, Lock]
-    cache: dict[K, V]
-    load_func: Callable[[K], V]
-    refresh_callback: Callable[[K, V], None]
-    refresh_rate_seconds: int
+class RefreshCache(Generic[_K, _V]):
+    __general_lock: Lock
+    __locks: dict[_K, Lock]
+    __cache: dict[_K, _V]
+    __load_func: Callable[[_K], _V]
+    __refresh_callback: Callable[[_K, _V], None]
+    __refresh_rate_seconds: int
 
     def __init__(
             self,
-            load_func: Callable[[K], V],
-            refresh_callback: Callable[[K, V], None],
+            load_func: Callable[[_K], _V],
+            refresh_callback: Callable[[_K, _V, _V], None],
             refresh_rate_seconds: int
     ) -> None:
-        self.general_lock = Lock()
-        self.locks = {}
-        self.cache = {}
-        self.load_func = load_func
-        self.refresh_callback = refresh_callback
-        self.refresh_rate_seconds = refresh_rate_seconds
+        self.__general_lock = Lock()
+        self.__locks = {}
+        self.__cache = {}
+        self.__load_func = load_func
+        self.__refresh_callback = refresh_callback
+        self.__refresh_rate_seconds = refresh_rate_seconds
 
-    def get(self, key: K) -> V:
-        if key in self.cache:
-            return self.cache[key]
+    def get(self, key: _K) -> _V:
+        if key in self.__cache:
+            return self.__cache[key]
         else:
             return self.__load_and_save__(key)
 
-    def __load_and_save__(self, key: K) -> V:
+    def __load_and_save__(self, key: _K) -> _V:
         (lock, just_created) = self.__get_lock__(key)
         with lock:
             if just_created:
                 # TODO graceful shutdown & destructor (?)
                 Thread(daemon=True, target=lambda: self.__schedule__(key)).start()
-            new_value: V = self.load_func(key)
-            self.cache[key] = new_value
+            new_value: _V = self.__load_func(key)
+            self.__cache[key] = new_value
             return new_value
 
-    def __refresh__(self, key: K) -> None:
-        self.refresh_callback(key, self.__load_and_save__(key))
+    def __refresh__(self, key: _K) -> None:
+        self.__refresh_callback(key, self.__cache[key], self.__load_and_save__(key))
 
-    def __get_lock__(self, key: K) -> (Lock, bool):
+    def __get_lock__(self, key: _K) -> (Lock, bool):
         just_created: bool = False
-        with self.general_lock:
-            if key not in self.locks:
-                self.locks[key] = Lock()
+        with self.__general_lock:
+            if key not in self.__locks:
+                self.__locks[key] = Lock()
                 just_created = True
-            return self.locks[key], just_created
+            return self.__locks[key], just_created
 
-    def __schedule__(self, key: K) -> None:
+    def __schedule__(self, key: _K) -> None:
         while True:
-            time.sleep(self.refresh_rate_seconds)
+            time.sleep(self.__refresh_rate_seconds)
             self.__refresh__(key)
 
 

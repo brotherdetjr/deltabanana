@@ -151,16 +151,15 @@ class Main:
             )
         entries = []
         with open(pathlib.PurePath(path, ref.path, 'entries.csv'), encoding='utf-8') as csvfile:
-            entry_reader = csv.reader(csvfile, delimiter=';')
-            for row in entry_reader:
+            for row in csv.reader(csvfile, delimiter=';'):
                 entries.append(tuple(row))
         logger.info(f'Fetched collection {ref}')
         return entries
 
-    def on_refresh(self, ref: GitRef, entries: List[Tuple[str]]) -> None:
+    def on_refresh(self, ref: GitRef, old_entries: List[Tuple[str]], entries: List[Tuple[str]]) -> None:
         for username in self.user_states:
             state: UserState = self.user_states.get(username)
-            if ref == state.current_ref and entries != state.entries:
+            if ref == state.current_ref and entries != old_entries:
                 state.set_entries(entries)
                 self.app.job_queue.run_once(
                     lambda ignore: self.app.bot.send_message(
