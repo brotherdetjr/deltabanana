@@ -156,11 +156,13 @@ class Main:
         logger.info(f'Fetched collection {ref}')
         return entries
 
-    def on_refresh(self, ref: GitRef, old_entries: List[Tuple[str]], entries: List[Tuple[str]]) -> None:
+    def on_refresh(self, ref: GitRef, old_entries: List[Tuple[str]], new_entries: List[Tuple[str]]) -> bool:
+        if new_entries == old_entries:
+            return False
         for username in self.user_states:
             state: UserState = self.user_states.get(username)
-            if ref == state.current_ref and entries != old_entries:
-                state.set_entries(entries)
+            if ref == state.current_ref:
+                state.set_entries(new_entries)
                 self.app.job_queue.run_once(
                     lambda ignore: self.app.bot.send_message(
                         state.chat_id,
@@ -168,6 +170,7 @@ class Main:
                     ),
                     0
                 )
+        return True
 
 
 if __name__ == '__main__':
