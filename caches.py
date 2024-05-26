@@ -30,24 +30,24 @@ class RefreshCache(Generic[_K, _V]):
         self.__refresh_rate_seconds = refresh_rate_seconds
 
     def get(self, key: _K) -> _V:
-        if key in self.__cache:
-            return self.__cache[key]
-        else:
-            return self.__load_and_save(key)
-
-    def __load_and_save(self, key: _K) -> _V:
         (lock, just_created) = self.__get_lock(key)
         with lock:
             if just_created:
                 # TODO graceful shutdown & destructor (?)
                 Thread(daemon=True, target=lambda: self.__schedule(key)).start()
-            old_value = self.__cache.get(key)
-            new_value: _V = self.__load_func(key)
-            if self.__refresh_callback(key, old_value, new_value):
-                self.__cache[key] = new_value
-                return new_value
+            if key in self.__cache:
+                return self.__cache[key]
             else:
-                return old_value
+                return self.__load_and_save(key)
+
+    def __load_and_save(self, key: _K) -> _V:
+        old_value = self.__cache.get(key)
+        new_value: _V = self.__load_func(key)
+        if self.__refresh_callback(key, old_value, new_value):
+            self.__cache[key] = new_value
+            return new_value
+        else:
+            return old_value
 
     def __get_lock(self, key: _K) -> (Lock, bool):
         just_created: bool = False
@@ -60,7 +60,8 @@ class RefreshCache(Generic[_K, _V]):
     def __schedule(self, key: _K) -> None:
         while True:
             time.sleep(self.__refresh_rate_seconds)
-            self.__load_and_save(key)
+            with self.__get_lock(key)[0]:
+                self.__load_and_save(key)
 
 
 class LimitedTtlCache(TTLCache):
