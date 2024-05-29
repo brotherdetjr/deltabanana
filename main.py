@@ -82,7 +82,7 @@ class Main:
         username = update.effective_user.username
         if username not in self.user_states:
             link = GitFileLink('git@github.com:brotherdetjr/deltabanana-collections.git', 'helloworld/entries.csv')
-            entries: List[Tuple[str]] = self.__git_source.get(link, Main.parse_entries)
+            entries: List[Tuple[str]] = list(self.__git_source.get(link, Main.parse_entries))
             self.user_states[username] = UserState(entries, link, update.effective_chat.id)
             logger.info(f'Storing a new state for user {username}. Stored state count: {len(self.user_states)}')
         else:
@@ -124,12 +124,12 @@ class Main:
             logger.error(f'Update {update} caused an error', context.error)
 
     @staticmethod
-    def parse_entries(path: pathlib.Path) -> List[Tuple[str]]:
+    def parse_entries(path: pathlib.Path) -> Tuple[Tuple[str]]:
         entries = []
         with open(path, encoding='utf-8') as csvfile:
             for row in csv.reader(csvfile, delimiter=';'):
                 entries.append(tuple(row))
-        return entries
+        return tuple(entries)
 
     # noinspection PyUnusedLocal
     def on_refresh(self, url: str, branch: str) -> None:
@@ -137,7 +137,7 @@ class Main:
             state: UserState = self.user_states.get(username)
             link: GitFileLink = state.current_link
             if (url, branch) == (link.url, link.branch):
-                state.set_entries(self.__git_source.get(link, Main.parse_entries))
+                state.set_entries(list(self.__git_source.get(link, Main.parse_entries)))
                 self.app.job_queue.run_once(
                     lambda ignore: self.app.bot.send_message(
                         state.chat_id,
