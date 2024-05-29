@@ -1,4 +1,4 @@
-.gitref_*
+.gitlink_*
 venv
 .idea
 locales/*/LC_MESSAGES/*.mo

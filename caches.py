@@ -1,5 +1,5 @@
 import time
-from threading import Lock, Thread
+from threading import RLock, Thread
 from typing import Generic, Callable, TypeVar
 
 from cachetools import TTLCache
@@ -9,20 +9,20 @@ _V = TypeVar("_V")
 
 
 class RefreshCache(Generic[_K, _V]):
-    __general_lock: Lock
-    __locks: dict[_K, Lock]
+    __general_lock: RLock
+    __locks: dict[_K, RLock]
     __cache: dict[_K, _V]
-    __load_func: Callable[[_K], _V]
-    __refresh_callback: Callable[[_K, _V], bool]
+    __load_func: Callable[[_K, _V | None], _V]
+    __refresh_callback: Callable[[_K, _V | None, _V], bool]
     __refresh_rate_seconds: int
 
     def __init__(
             self,
-            load_func: Callable[[_K], _V],
-            refresh_callback: Callable[[_K, _V, _V], bool],
+            load_func: Callable[[_K, _V | None], _V],
+            refresh_callback: Callable[[_K, _V | None, _V], bool],
             refresh_rate_seconds: int
     ) -> None:
-        self.__general_lock = Lock()
+        self.__general_lock = RLock()
         self.__locks = {}
         self.__cache = {}
         self.__load_func = load_func
@@ -41,19 +41,19 @@ class RefreshCache(Generic[_K, _V]):
                 return self.__load_and_save(key)
 
     def __load_and_save(self, key: _K) -> _V:
-        old_value = self.__cache.get(key)
-        new_value: _V = self.__load_func(key)
+        old_value: _V = self.__cache.get(key)
+        new_value: _V = self.__load_func(key, old_value)
         if self.__refresh_callback(key, old_value, new_value):
             self.__cache[key] = new_value
             return new_value
         else:
             return old_value
 
-    def __get_lock(self, key: _K) -> (Lock, bool):
+    def __get_lock(self, key: _K) -> (RLock, bool):
         just_created: bool = False
         with self.__general_lock:
             if key not in self.__locks:
-                self.__locks[key] = Lock()
+                self.__locks[key] = RLock()
                 just_created = True
             return self.__locks[key], just_created
 
