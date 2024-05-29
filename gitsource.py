@@ -13,7 +13,7 @@ from pathlib import Path
 
 from caches import RefreshCache
 
-_logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -58,7 +58,7 @@ class GitSource:
             refresh_rate_seconds=refresh_rate_seconds
         )
 
-    def get(self, link: GitFileLink, map_func: Callable[[Path], T]) -> T:
+    def get(self, link: GitFileLink, map_func: Callable[[Path, GitFileLink], T]) -> T:
         repo_link = _GitRepoLink(link.url, link.branch)
         with self.__link_cache.get(repo_link).lock:
             # Lock doesn't change when created, but self.__link_cache.get(repo_link)
@@ -69,7 +69,7 @@ class GitSource:
             if value is not None:
                 return value
             else:
-                new_value = map_func(Path(repo_link.dir_name(), link.path))
+                new_value = map_func(Path(repo_link.dir_name(), link.path), link)
                 content[link.path] = new_value
                 return new_value
 
@@ -79,10 +79,10 @@ class GitSource:
         with lock:
             dir_name = link.dir_name()
             if os.path.isdir(dir_name):
-                _logger.info(f'Pulling {link} at path {dir_name} ...')
+                logger.info(f'Pulling {link} at path {dir_name} ...')
                 porcelain.pull(dir_name, errstream=NoneStream())
             else:
-                _logger.info(f'Cloning {link} at path {dir_name} ...')
+                logger.info(f'Cloning {link} at path {dir_name} ...')
                 porcelain.clone(
                     source=link.url,
                     target=dir_name,
@@ -91,7 +91,7 @@ class GitSource:
                     errstream=NoneStream()
                 )
             rev = GitSource.__get_commit(dir_name)
-            _logger.info(f'Updated  {link} at revision {rev}')
+            logger.info(f'Updated  {link} at revision {rev}')
             return _CachedFiles(rev, lock)
 
     def __on_refresh(self, link: _GitRepoLink, old_files: _CachedFiles | None, new_files: _CachedFiles) -> bool:

@@ -1,9 +1,11 @@
 import csv
 import gettext
-import logging
+import json
+import logging.config
 import os.path
+from dataclasses import dataclass
 from random import shuffle
-from typing import Final, List, Tuple
+from typing import List, Tuple
 
 import pathlib
 import yaml
@@ -13,37 +15,47 @@ from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue
 from caches import LimitedTtlCache, CapacityException
 from gitsource import GitSource, GitFileLink
 
-ICONS: Final[List[str]] = ['🇬🇧', '🇷🇺', '👂']
+logging.config.fileConfig('logging.conf')
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class Collection:
+    entries: Tuple[Tuple[str]]
+    nativeLang: str
+    studiedLang: str
+    topic: str
+    link: GitFileLink
 
 
 class UserState:
-    current_link: GitFileLink
-    entries: List[Tuple[str]]
+    collection: Collection
+    mutable_entries: List[Tuple[str]]
     entryIdx: int
     tupleIdx: int
     chat_id: int
 
-    def __init__(self, entries: List[Tuple[str]], current_link: GitFileLink, chat_id: int):
-        self.set_entries(entries)
-        self.current_link = current_link
+    def __init__(self, collection: Collection, chat_id: int):
+        self.set_collection(collection)
         self.chat_id = chat_id
 
-    def set_entries(self, entries: List[Tuple[str]]) -> None:
-        self.entries = entries
+    def set_collection(self, collection: Collection) -> None:
+        self.collection = collection
+        self.mutable_entries = list(collection.entries)
         self.reset()
 
     def has_entries(self) -> bool:
-        return len(self.entries) > 0
+        return len(self.mutable_entries) > 0
 
     def get_current_word(self) -> str:
-        return self.entries[self.entryIdx][self.tupleIdx]
+        return self.mutable_entries[self.entryIdx][self.tupleIdx]
 
     def go_next_word(self) -> None:
         self.tupleIdx = self.tupleIdx + 1
         if self.tupleIdx == 3:
             self.tupleIdx = 0
             self.entryIdx = self.entryIdx + 1
-            if self.entryIdx == len(self.entries):
+            if self.entryIdx == len(self.mutable_entries):
                 self.entryIdx = 0
 
     def reset(self) -> None:
@@ -51,7 +63,7 @@ class UserState:
         self.tupleIdx = 0
 
     def shuffle_entries(self) -> None:
-        shuffle(self.entries)
+        shuffle(self.mutable_entries)
         self.reset()
 
 
@@ -81,9 +93,9 @@ class Main:
     def user_state(self, update: Update) -> UserState:
         username = update.effective_user.username
         if username not in self.user_states:
-            link = GitFileLink('git@github.com:brotherdetjr/deltabanana-collections.git', 'helloworld/entries.csv')
-            entries: List[Tuple[str]] = list(self.__git_source.get(link, Main.parse_entries))
-            self.user_states[username] = UserState(entries, link, update.effective_chat.id)
+            link = GitFileLink('git@github.com:brotherdetjr/deltabanana-collections.git', 'helloworld')
+            collection: Collection = self.__git_source.get(link, Main.parse_entries)
+            self.user_states[username] = UserState(collection, update.effective_chat.id)
             logger.info(f'Storing a new state for user {username}. Stored state count: {len(self.user_states)}')
         else:
             # Refresh state's TTL
@@ -110,7 +122,8 @@ class Main:
         while not text:
             state.go_next_word()
             text = state.get_current_word().strip()
-        await update.message.reply_text(f'{ICONS[state.tupleIdx]} {text}')
+        e: Collection = state.collection
+        await update.message.reply_text([e.studiedLang, e.nativeLang, '👂'][state.tupleIdx] + ' ' + text)
         state.go_next_word()
 
     # noinspection PyUnusedLocal
@@ -126,20 +139,23 @@ class Main:
             logger.error(f'Update {update} caused an error', context.error)
 
     @staticmethod
-    def parse_entries(path: pathlib.Path) -> Tuple[Tuple[str]]:
-        entries = []
-        with open(path, encoding='utf-8') as csvfile:
-            for row in csv.reader(csvfile, delimiter=';'):
-                entries.append(tuple(row))
-        return tuple(entries)
+    def parse_entries(path: pathlib.Path, link: GitFileLink) -> Collection:
+        content = []
+        with open(path.joinpath('entries.csv'), encoding='utf-8') as csv_file:
+            for row in csv.reader(csv_file, delimiter=';'):
+                content.append(tuple(row))
+        descr: dict
+        with open(path.joinpath('description.json'), encoding='UTF-8') as json_file:
+            descr = json.load(json_file)
+        return Collection(tuple(content), descr['nativeLang'], descr['studiedLang'], descr['topic'], link)
 
     # noinspection PyUnusedLocal
     def on_refresh(self, url: str, branch: str) -> None:
         for username in self.user_states:
             state: UserState = self.user_states.get(username)
-            link: GitFileLink = state.current_link
+            link: GitFileLink = state.collection.link
             if (url, branch) == (link.url, link.branch):
-                state.set_entries(list(self.__git_source.get(link, Main.parse_entries)))
+                state.set_collection(self.__git_source.get(link, Main.parse_entries))
                 self.app.job_queue.run_once(
                     lambda ignore: self.app.bot.send_message(
                         state.chat_id,
@@ -154,8 +170,5 @@ if __name__ == '__main__':
     if not config:
         config = {}
     _ = gettext.translation('deltabanana', './locales', fallback=False, languages=[config.get('locale', 'en')]).gettext
-    logger = logging.getLogger('deltabanana')
-    logger.setLevel(level=logging.INFO)
-    logger.addHandler(logging.StreamHandler())
     logger.info('Starting bot...')
     Main(os.getenv('DELTABANANA_TOKEN'))
