@@ -101,15 +101,17 @@ class Main:
 
     # noinspection PyUnusedLocal
     async def next_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self.user_state(update).has_entries():
+        state: UserState = self.user_state(update)
+        if not state.has_entries():
             await update.message.reply_text(_('No entries in collection!'))
             return
 
-        text: str = self.user_state(update).get_current_word().strip()
-        if not text:
-            text = '...'
-        await update.message.reply_text(f'{ICONS[self.user_state(update).tupleIdx]} {text}')
-        self.user_state(update).go_next_word()
+        text: str = state.get_current_word().strip()
+        while not text:
+            state.go_next_word()
+            text = state.get_current_word().strip()
+        await update.message.reply_text(f'{ICONS[state.tupleIdx]} {text}')
+        state.go_next_word()
 
     # noinspection PyUnusedLocal
     async def shuffle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
