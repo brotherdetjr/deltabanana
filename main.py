@@ -7,10 +7,12 @@ from dataclasses import dataclass
 from random import shuffle
 from typing import List, Tuple
 
+import asyncio
 import pathlib
 import yaml
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue
+from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
+    ReplyKeyboardRemove
+from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue, CallbackQueryHandler
 
 from caches import LimitedTtlCache, CapacityException
 from gitsource import GitSource, GitFileLink
@@ -27,44 +29,66 @@ class Collection:
     topic: str
     link: GitFileLink
 
+    @property
+    def decorated_topic(self) -> str:
+        return f'{self.topic} {self.nativeLang} {self.studiedLang}'
+
 
 class UserState:
-    collection: Collection
-    mutable_entries: List[Tuple[str]]
-    entryIdx: int
-    tupleIdx: int
-    chat_id: int
+    __collection: Collection | None
+    __mutable_entries: List[Tuple[str]]
+    __entryIdx: int
+    __tupleIdx: int
+    __chat_id: int
 
-    def __init__(self, collection: Collection, chat_id: int):
-        self.set_collection(collection)
-        self.chat_id = chat_id
+    def __init__(self, chat_id: int):
+        self.__chat_id = chat_id
 
-    def set_collection(self, collection: Collection) -> None:
-        self.collection = collection
-        self.mutable_entries = list(collection.entries)
-        self.reset()
-
-    def has_entries(self) -> bool:
-        return len(self.mutable_entries) > 0
-
-    def get_current_word(self) -> str:
-        return self.mutable_entries[self.entryIdx][self.tupleIdx]
-
-    def go_next_word(self) -> None:
-        self.tupleIdx = self.tupleIdx + 1
-        if self.tupleIdx == 3:
-            self.tupleIdx = 0
-            self.entryIdx = self.entryIdx + 1
-            if self.entryIdx == len(self.mutable_entries):
-                self.entryIdx = 0
+    @property
+    def chat_id(self) -> int:
+        return self.__chat_id
 
     def reset(self) -> None:
-        self.entryIdx = 0
-        self.tupleIdx = 0
+        self.__collection = None
+
+    @property
+    def collection(self) -> Collection | None:
+        return self.__collection
+
+    @collection.setter
+    def collection(self, collection: Collection | None) -> None:
+        self.__collection = collection
+        if collection:
+            self.__mutable_entries = list(collection.entries)
+            self.shuffle_entries()
+
+    @property
+    def has_entries(self) -> bool:
+        return len(self.__mutable_entries) > 0
+
+    @property
+    def current_word(self) -> str:
+        return self.__mutable_entries[self.__entryIdx][self.__tupleIdx]
+
+    def go_next_word(self) -> None:
+        self.__tupleIdx = self.__tupleIdx + 1
+        if self.__tupleIdx == 3:
+            self.__tupleIdx = 0
+            self.__entryIdx = self.__entryIdx + 1
+            if self.__entryIdx == len(self.__mutable_entries):
+                self.__entryIdx = 0
+
+    def reset_collection(self) -> None:
+        self.__entryIdx = 0
+        self.__tupleIdx = 0
 
     def shuffle_entries(self) -> None:
-        shuffle(self.mutable_entries)
-        self.reset()
+        shuffle(self.__mutable_entries)
+        self.reset_collection()
+
+    @property
+    def word_decoration(self) -> str:
+        return [self.collection.studiedLang, self.collection.nativeLang, '👂'][self.__tupleIdx]
 
 
 class Main:
@@ -81,6 +105,7 @@ class Main:
         app.add_handler(CommandHandler('start', self.start_command))
         app.add_handler(CommandHandler('next', self.next_command))
         app.add_handler(CommandHandler('shuffle', self.shuffle_command))
+        app.add_handler(CallbackQueryHandler(self.collection_button))
         app.add_error_handler(self.error)
         self.git_source = GitSource(
             refresh_callback=self.on_refresh,
@@ -93,9 +118,7 @@ class Main:
     def user_state(self, update: Update) -> UserState:
         username = update.effective_user.username
         if username not in self.user_states:
-            link = GitFileLink(**config.get('collections', [])[0])
-            collection: Collection = self.git_source.get(link, Main.parse_entries)
-            self.user_states[username] = UserState(collection, update.effective_chat.id)
+            self.user_states[username] = UserState(update.effective_chat.id)
             logger.info(f'Storing a new state for user {username}. Stored state count: {len(self.user_states)}')
         else:
             # Refresh state's TTL
@@ -105,30 +128,61 @@ class Main:
     # noinspection PyUnusedLocal
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.user_state(update).reset()
-        button = [[KeyboardButton('/next')]]
-        await update.effective_message.reply_text(
-            _("Let's rock!"),
-            reply_markup=ReplyKeyboardMarkup(button, resize_keyboard=True)
+        collections_keyboard = []
+        for idx, ignore in enumerate(config['collections']):
+            collection = self.get_collection(idx)
+            button_markup = [InlineKeyboardButton(collection.decorated_topic, callback_data=idx)]
+            collections_keyboard.append(button_markup)
+        reply_markup = InlineKeyboardMarkup(collections_keyboard)
+        await asyncio.gather(
+            self.remove_chat_buttons(update.effective_chat.id),
+            update.message.reply_text(_('Collections'), reply_markup=reply_markup)
         )
+
+    async def collection_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        collection = self.get_collection(int(update.callback_query.data))
+        self.user_state(update).collection = collection
+        await asyncio.gather(
+            update.callback_query.answer(),
+            update.effective_message.reply_text(
+                _('Selected {topic}').format(topic=collection.decorated_topic),
+                reply_markup=ReplyKeyboardMarkup(
+                    [[KeyboardButton('/next')]],
+                    resize_keyboard=True
+                )
+            )
+        )
+        await self.next_command(update, context)
 
     # noinspection PyUnusedLocal
     async def next_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
-        if not state.has_entries():
+        if not state.collection:
+            await update.message.reply_text(_('Choose collection first!'))
+            return
+        if not state.has_entries:
             await update.message.reply_text(_('No entries in collection!'))
             return
 
-        text: str = state.get_current_word().strip()
+        text: str = state.current_word.strip()
         while not text:
             state.go_next_word()
-            text = state.get_current_word().strip()
-        e: Collection = state.collection
-        await update.message.reply_text([e.studiedLang, e.nativeLang, '👂'][state.tupleIdx] + ' ' + text)
+            text = state.current_word.strip()
+        await self.app.bot.send_message(state.chat_id, f'{state.word_decoration} {text}')
         state.go_next_word()
 
     # noinspection PyUnusedLocal
+    def get_collection(self, idx) -> Collection:
+        link = GitFileLink(**config['collections'][idx])
+        return self.git_source.get(link, Main.parse_collection)
+
+    # noinspection PyUnusedLocal
     async def shuffle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        self.user_state(update).shuffle_entries()
+        state: UserState = self.user_state(update)
+        if not state.collection:
+            await update.message.reply_text(_('Choose collection first!'))
+            return
+        state.shuffle_entries()
         await update.message.reply_text(_('Shuffled'))
 
     @staticmethod
@@ -139,7 +193,7 @@ class Main:
             logger.error(f'Update {update} caused an error', context.error)
 
     @staticmethod
-    def parse_entries(path: pathlib.Path, link: GitFileLink) -> Collection:
+    def parse_collection(path: pathlib.Path, link: GitFileLink) -> Collection:
         content = []
         with open(path.joinpath('entries.csv'), encoding='utf-8') as csv_file:
             for row in csv.reader(csv_file, delimiter=';'):
@@ -153,16 +207,23 @@ class Main:
     def on_refresh(self, url: str, branch: str) -> None:
         for username in self.user_states:
             state: UserState = self.user_states.get(username)
+            if not state.collection:
+                continue
             link: GitFileLink = state.collection.link
-            if (url, branch) == (link.url, link.branch):
-                state.set_collection(self.git_source.get(link, Main.parse_entries))
-                self.app.job_queue.run_once(
-                    lambda ignore: self.app.bot.send_message(
-                        state.chat_id,
-                        _('Word collection has been modified externally!')
-                    ),
-                    0
-                )
+            if (url, branch) != (link.url, link.branch):
+                continue
+            state.collection = self.git_source.get(link, Main.parse_collection)
+            self.app.job_queue.run_once(
+                lambda ignore: self.app.bot.send_message(
+                    state.chat_id,
+                    _('Word collection has been modified externally!')
+                ),
+                0
+            )
+
+    async def remove_chat_buttons(self, chat_id: int, msg_text: str = 'You are not supposed to see this'):
+        msg = await self.app.bot.send_message(chat_id, msg_text, reply_markup=ReplyKeyboardRemove())
+        await msg.delete()
 
 
 if __name__ == '__main__':
