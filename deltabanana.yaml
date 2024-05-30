@@ -1,6 +1,12 @@
 locale: ru
-entries_refresh_rate_seconds: 600
+collection_refresh_rate_seconds: 600
 bot_poll_interval_seconds: 2
 active_user_sessions:
   max_count: 1000
   inactivity_timeout_seconds: 604800
+collections:
+  - url: git@github.com:brotherdetjr/deltabanana-collections.git
+    branch: main
+    path: helloworld
+  - url: git@github.com:brotherdetjr/deltabanana-collections.git
+    path: another

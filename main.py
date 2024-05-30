@@ -69,7 +69,7 @@ class UserState:
 
 class Main:
     user_states: LimitedTtlCache[str, UserState]
-    __git_source: GitSource
+    git_source: GitSource
     app: Application
 
     def __init__(self, bot_token: str):
@@ -82,9 +82,9 @@ class Main:
         app.add_handler(CommandHandler('next', self.next_command))
         app.add_handler(CommandHandler('shuffle', self.shuffle_command))
         app.add_error_handler(self.error)
-        self.__git_source = GitSource(
+        self.git_source = GitSource(
             refresh_callback=self.on_refresh,
-            refresh_rate_seconds=config.get('entries_refresh_rate_seconds', 600)
+            refresh_rate_seconds=config.get('collection_refresh_rate_seconds', 600)
         )
         self.app = app
         logger.info('Polling...')
@@ -93,8 +93,8 @@ class Main:
     def user_state(self, update: Update) -> UserState:
         username = update.effective_user.username
         if username not in self.user_states:
-            link = GitFileLink('git@github.com:brotherdetjr/deltabanana-collections.git', 'helloworld')
-            collection: Collection = self.__git_source.get(link, Main.parse_entries)
+            link = GitFileLink(**config.get('collections', [])[0])
+            collection: Collection = self.git_source.get(link, Main.parse_entries)
             self.user_states[username] = UserState(collection, update.effective_chat.id)
             logger.info(f'Storing a new state for user {username}. Stored state count: {len(self.user_states)}')
         else:
@@ -155,7 +155,7 @@ class Main:
             state: UserState = self.user_states.get(username)
             link: GitFileLink = state.collection.link
             if (url, branch) == (link.url, link.branch):
-                state.set_collection(self.__git_source.get(link, Main.parse_entries))
+                state.set_collection(self.git_source.get(link, Main.parse_entries))
                 self.app.job_queue.run_once(
                     lambda ignore: self.app.bot.send_message(
                         state.chat_id,
