@@ -106,8 +106,8 @@ class UserState:
     def decorated_word(self) -> str:
         c = self.collection
         native_studied_pronunciation_icon = [c.studied_lang, c.native_lang, '👂'][self.__tuple_idx_with_mode_applied]
-        question_answer_icon = ['❔', '❕', ''][self.__tuple_idx]
-        return f'{native_studied_pronunciation_icon} {self.current_word} {question_answer_icon}'
+        question_answer_icon = ['❓', '❗', ''][self.__tuple_idx]
+        return f'{native_studied_pronunciation_icon} {self.current_word.strip()} {question_answer_icon}'
 
     @property
     def __tuple_idx_with_mode_applied(self) -> int:
