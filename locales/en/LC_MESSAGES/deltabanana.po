@@ -6,8 +6,8 @@ msgstr ""
 msgid "Word collection has been modified externally!"
 msgstr "ℹ Word collection has been modified externally!"
 
-msgid "Selected {topic}"
-msgstr "Selected {topic}"
+msgid "Selected collection {topic}"
+msgstr "Selected collection {topic}"
 
 msgid "No entries in collection!"
 msgstr "🪹 No entries in collection!"

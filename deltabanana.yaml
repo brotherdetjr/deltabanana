@@ -5,8 +5,10 @@ active_user_sessions:
   max_count: 1000
   inactivity_timeout_seconds: 604800
 collections:
-  - url: git@github.com:brotherdetjr/deltabanana-collections.git
+  - title: Разное
+    url: git@github.com:brotherdetjr/deltabanana-collections.git
     branch: main
-    path: helloworld
-  - url: git@github.com:brotherdetjr/deltabanana-collections.git
-    path: another
+    path: misc
+  - title: Тест
+    url: git@github.com:brotherdetjr/deltabanana-collections.git
+    path: test

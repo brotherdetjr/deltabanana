@@ -1,6 +1,5 @@
 import csv
 import gettext
-import json
 import logging.config
 import os.path
 from dataclasses import dataclass
@@ -28,10 +27,6 @@ class Collection:
     studiedLang: str
     topic: str
     link: GitFileLink
-
-    @property
-    def decorated_topic(self) -> str:
-        return f'{self.topic} {self.nativeLang} {self.studiedLang}'
 
 
 class UserState:
@@ -130,22 +125,30 @@ class Main:
         self.user_state(update).reset()
         collections_keyboard = []
         for idx, ignore in enumerate(config['collections']):
-            collection = self.get_collection(idx)
-            button_markup = [InlineKeyboardButton(collection.decorated_topic, callback_data=idx)]
-            collections_keyboard.append(button_markup)
+            try:
+                collection = self.get_collection(idx)
+                button_markup = [InlineKeyboardButton(Main.to_title(collection, idx), callback_data=idx)]
+                collections_keyboard.append(button_markup)
+            except FileNotFoundError as e:
+                logger.error('Failed to load collection #%s from config file', idx, exc_info=e)
         reply_markup = InlineKeyboardMarkup(collections_keyboard)
         await asyncio.gather(
             self.remove_chat_buttons(update.effective_chat.id),
             update.message.reply_text(_('Collections'), reply_markup=reply_markup)
         )
 
+    @staticmethod
+    def to_title(collection: Collection, index_in_config: int) -> str:
+        return f"{config['collections'][index_in_config]['title']} {collection.nativeLang} {collection.studiedLang}"
+
     async def collection_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        collection = self.get_collection(int(update.callback_query.data))
+        idx: int = int(update.callback_query.data)
+        collection = self.get_collection(idx)
         self.user_state(update).collection = collection
         await asyncio.gather(
             update.callback_query.answer(),
             update.effective_message.reply_text(
-                _('Selected {topic}').format(topic=collection.decorated_topic),
+                _('Selected collection {topic}').format(topic=Main.to_title(collection, idx)),
                 reply_markup=ReplyKeyboardMarkup(
                     [[KeyboardButton('/next')]],
                     resize_keyboard=True
@@ -173,7 +176,8 @@ class Main:
 
     # noinspection PyUnusedLocal
     def get_collection(self, idx) -> Collection:
-        link = GitFileLink(**config['collections'][idx])
+        c = config['collections'][idx]
+        link = GitFileLink(c['url'], c['path'], c.get('branch'))
         return self.git_source.get(link, Main.parse_collection)
 
     # noinspection PyUnusedLocal
@@ -190,7 +194,7 @@ class Main:
         if isinstance(context.error, CapacityException):
             await update.message.reply_text(_('The bot is busy'))
         else:
-            logger.error(f'Update {update} caused an error', context.error)
+            logger.error('Update %s caused an error', update, exc_info=context.error)
 
     @staticmethod
     def parse_collection(path: pathlib.Path, link: GitFileLink) -> Collection:
@@ -198,10 +202,9 @@ class Main:
         with open(path.joinpath('entries.csv'), encoding='utf-8') as csv_file:
             for row in csv.reader(csv_file, delimiter=';'):
                 content.append(tuple(row))
-        descr: dict
-        with open(path.joinpath('description.json'), encoding='UTF-8') as json_file:
-            descr = json.load(json_file)
-        return Collection(tuple(content), descr['nativeLang'], descr['studiedLang'], descr['topic'], link)
+        with open(path.joinpath('description.yaml'), encoding='UTF-8') as yaml_file:
+            descr: dict = yaml.safe_load(yaml_file)
+            return Collection(tuple(content), descr['nativeLang'], descr['studiedLang'], descr['topic'], link)
 
     # noinspection PyUnusedLocal
     def on_refresh(self, url: str, branch: str) -> None:
@@ -212,14 +215,17 @@ class Main:
             link: GitFileLink = state.collection.link
             if (url, branch) != (link.url, link.branch):
                 continue
-            state.collection = self.git_source.get(link, Main.parse_collection)
-            self.app.job_queue.run_once(
-                lambda ignore: self.app.bot.send_message(
-                    state.chat_id,
-                    _('Word collection has been modified externally!')
-                ),
-                0
-            )
+            try:
+                state.collection = self.git_source.get(link, Main.parse_collection)
+                self.app.job_queue.run_once(
+                    lambda ignore: self.app.bot.send_message(
+                        state.chat_id,
+                        _('Word collection has been modified externally!')
+                    ),
+                    0
+                )
+            except FileNotFoundError as e:
+                logger.error('Failed to refresh collection %s', link, exc_info=e)
 
     async def remove_chat_buttons(self, chat_id: int, msg_text: str = 'You are not supposed to see this'):
         msg = await self.app.bot.send_message(chat_id, msg_text, reply_markup=ReplyKeyboardRemove())
@@ -227,9 +233,8 @@ class Main:
 
 
 if __name__ == '__main__':
-    config: dict = yaml.safe_load(open('deltabanana.yaml'))
-    if not config:
-        config = {}
-    _ = gettext.translation('deltabanana', './locales', fallback=False, languages=[config.get('locale', 'en')]).gettext
-    logger.info('Starting bot...')
-    Main(os.getenv('DELTABANANA_TOKEN'))
+    with open('deltabanana.yaml', encoding='UTF-8') as config_file:
+        config: dict = yaml.safe_load(config_file)
+        _ = gettext.translation('deltabanana', './locales', fallback=False, languages=[config.get('locale', 'en')]).gettext
+        logger.info('Starting bot...')
+        Main(os.getenv('DELTABANANA_TOKEN'))

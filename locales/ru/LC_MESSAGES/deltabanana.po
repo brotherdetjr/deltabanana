@@ -6,8 +6,8 @@ msgstr ""
 msgid "Word collection has been modified externally!"
 msgstr "ℹ Словарик был изменён в источнике!"
 
-msgid "Selected {topic}"
-msgstr "Выбран {topic}"
+msgid "Selected collection {topic}"
+msgstr "Выбран словарик {topic}"
 
 msgid "No entries in collection!"
 msgstr "🪹 Словарик пуст!"
