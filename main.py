@@ -43,9 +43,10 @@ class Collection:
 class UserState:
     __collection: Collection | None
     __mutable_entries: List[Tuple[str]]
-    __entryIdx: int
-    __tupleIdx: int
+    __entry_idx: int
+    __tuple_idx: int
     __chat_id: int
+    __reverse_mode: bool
 
     def __init__(self, chat_id: int):
         self.__chat_id = chat_id
@@ -57,6 +58,7 @@ class UserState:
 
     def reset(self) -> None:
         self.__collection = None
+        self.__reverse_mode = False
 
     @property
     def collection(self) -> Collection | None:
@@ -74,19 +76,27 @@ class UserState:
 
     @property
     def current_word(self) -> str:
-        return self.__mutable_entries[self.__entryIdx][self.__tupleIdx]
+        return self.__mutable_entries[self.__entry_idx][self.__tuple_idx_with_mode_applied()]
+
+    @property
+    def reverse_mode(self) -> bool:
+        return self.__reverse_mode
+
+    def toggle_reverse_mode(self) -> None:
+        self.__reverse_mode = not self.__reverse_mode
+        self.reset_collection()
 
     def go_next_word(self) -> None:
-        self.__tupleIdx = self.__tupleIdx + 1
-        if self.__tupleIdx == 3:
-            self.__tupleIdx = 0
-            self.__entryIdx = self.__entryIdx + 1
-            if self.__entryIdx == len(self.__mutable_entries):
-                self.__entryIdx = 0
+        self.__tuple_idx = self.__tuple_idx + 1
+        if self.__tuple_idx == 3:
+            self.__tuple_idx = 0
+            self.__entry_idx = self.__entry_idx + 1
+            if self.__entry_idx == len(self.__mutable_entries):
+                self.__entry_idx = 0
 
     def reset_collection(self) -> None:
-        self.__entryIdx = 0
-        self.__tupleIdx = 0
+        self.__entry_idx = 0
+        self.__tuple_idx = 0
 
     def shuffle_entries(self) -> None:
         shuffle(self.__mutable_entries)
@@ -94,7 +104,10 @@ class UserState:
 
     @property
     def word_decoration(self) -> str:
-        return [self.collection.studied_lang, self.collection.native_lang, '👂'][self.__tupleIdx]
+        return [self.collection.studied_lang, self.collection.native_lang, '👂'][self.__tuple_idx_with_mode_applied()]
+
+    def __tuple_idx_with_mode_applied(self) -> int:
+        return 1 - self.__tuple_idx if self.__tuple_idx < 2 and self.__reverse_mode else self.__tuple_idx
 
 
 class Main:
@@ -111,6 +124,7 @@ class Main:
         app.add_handler(CommandHandler('start', self.start_command))
         app.add_handler(CommandHandler('next', self.next_command))
         app.add_handler(CommandHandler('shuffle', self.shuffle_command))
+        app.add_handler(CommandHandler('reverse', self.reverse_command))
         app.add_handler(CommandHandler('info', self.info_command))
         app.add_handler(CallbackQueryHandler(self.collection_button))
         app.add_error_handler(self.error)
@@ -189,6 +203,16 @@ class Main:
             return
         state.shuffle_entries()
         await update.message.reply_text(_('Shuffled'))
+
+    # noinspection PyUnusedLocal
+    async def reverse_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        state: UserState = self.user_state(update)
+        if not state.collection:
+            await update.message.reply_text(_('Choose collection first!'))
+            return
+        state.toggle_reverse_mode()
+        lang: str = state.collection.native_lang if state.reverse_mode else state.collection.studied_lang
+        await update.message.reply_text(_('Reverse mode toggle: {lang} goes first').format(lang=lang))
 
     # noinspection PyUnusedLocal
     async def info_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

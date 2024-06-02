@@ -33,3 +33,6 @@ msgstr "<b>Title:</b> {title}\n\
 <b>Git branch:</b> {branch}\n\
 <b>Path in repo:</b> {path}\n\
 <b>Entry count:</b> {entry_count}"
+
+msgid "Reverse mode toggle: {lang} goes first"
+msgstr "🔁 Reverse mode toggle: {lang} goes first"
