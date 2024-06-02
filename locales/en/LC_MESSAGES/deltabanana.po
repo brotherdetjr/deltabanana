@@ -6,8 +6,8 @@ msgstr ""
 msgid "Word collection has been modified externally!"
 msgstr "ℹ Word collection has been modified externally!"
 
-msgid "Selected collection {topic}"
-msgstr "Selected collection {topic}"
+msgid "Selected collection: {topic}"
+msgstr "<b>Selected collection:</b> {topic}"
 
 msgid "No entries in collection!"
 msgstr "🪹 No entries in collection!"
@@ -23,3 +23,13 @@ msgstr "Collections:"
 
 msgid "Choose collection first!"
 msgstr "✋ Choose collection first!"
+
+msgid "Collection info"
+msgstr "<b>Title:</b> {title}\n\
+<b>Topic:</b> {topic}\n\
+<b>Native language:</b> {native_lang}\n\
+<b>Studied language:</b> {studied_lang}\n\
+<b>Git URL:</b> {url}\n\
+<b>Git branch:</b> {branch}\n\
+<b>Path in repo:</b> {path}\n\
+<b>Entry count:</b> {entry_count}"

@@ -6,8 +6,8 @@ msgstr ""
 msgid "Word collection has been modified externally!"
 msgstr "ℹ Словарик был изменён в источнике!"
 
-msgid "Selected collection {topic}"
-msgstr "Выбран словарик {topic}"
+msgid "Selected collection: {topic}"
+msgstr "<b>Выбран словарик:</b> {topic}"
 
 msgid "No entries in collection!"
 msgstr "🪹 Словарик пуст!"
@@ -23,3 +23,13 @@ msgstr "Словарики:"
 
 msgid "Choose collection first!"
 msgstr "✋ Сперва выберите словарик!"
+
+msgid "Collection info"
+msgstr "<b>Название:</b> {title}\n\
+<b>Тема:</b> {topic}\n\
+<b>Родной язык:</b> {native_lang}\n\
+<b>Изучаемый язык:</b> {studied_lang}\n\
+<b>Git URL:</b> {url}\n\
+<b>Ветка:</b> {branch}\n\
+<b>Путь в репозитории:</b> {path}\n\
+<b>Количество записей:</b> {entry_count}"

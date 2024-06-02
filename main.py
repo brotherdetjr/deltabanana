@@ -28,6 +28,17 @@ class Collection:
     topic: str
     link: GitFileLink
 
+    @property
+    def title(self) -> str:
+        for idx, c in enumerate(config['collections']):
+            if GitFileLink(c['url'], c['path'], c.get('branch')) == self.link:
+                return config['collections'][idx]['title']
+        raise IndexError
+
+    @property
+    def decorated_title(self) -> str:
+        return f'{self.title} {self.nativeLang} {self.studiedLang}'
+
 
 class UserState:
     __collection: Collection | None
@@ -38,6 +49,7 @@ class UserState:
 
     def __init__(self, chat_id: int):
         self.__chat_id = chat_id
+        self.reset()
 
     @property
     def chat_id(self) -> int:
@@ -51,11 +63,10 @@ class UserState:
         return self.__collection
 
     @collection.setter
-    def collection(self, collection: Collection | None) -> None:
+    def collection(self, collection: Collection) -> None:
         self.__collection = collection
-        if collection:
-            self.__mutable_entries = list(collection.entries)
-            self.shuffle_entries()
+        self.__mutable_entries = list(collection.entries)
+        self.shuffle_entries()
 
     @property
     def has_entries(self) -> bool:
@@ -100,6 +111,7 @@ class Main:
         app.add_handler(CommandHandler('start', self.start_command))
         app.add_handler(CommandHandler('next', self.next_command))
         app.add_handler(CommandHandler('shuffle', self.shuffle_command))
+        app.add_handler(CommandHandler('info', self.info_command))
         app.add_handler(CallbackQueryHandler(self.collection_button))
         app.add_error_handler(self.error)
         self.git_source = GitSource(
@@ -126,8 +138,7 @@ class Main:
         collections_keyboard = []
         for idx, ignore in enumerate(config['collections']):
             try:
-                collection = self.get_collection(idx)
-                button_markup = [InlineKeyboardButton(Main.to_title(collection, idx), callback_data=idx)]
+                button_markup = [InlineKeyboardButton(self.get_collection(idx).decorated_title, callback_data=idx)]
                 collections_keyboard.append(button_markup)
             except FileNotFoundError as e:
                 logger.error('Failed to load collection #%s from config file', idx, exc_info=e)
@@ -137,18 +148,14 @@ class Main:
             update.message.reply_text(_('Collections'), reply_markup=reply_markup)
         )
 
-    @staticmethod
-    def to_title(collection: Collection, index_in_config: int) -> str:
-        return f"{config['collections'][index_in_config]['title']} {collection.nativeLang} {collection.studiedLang}"
-
     async def collection_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        idx: int = int(update.callback_query.data)
-        collection = self.get_collection(idx)
+        collection = self.get_collection(int(update.callback_query.data))
         self.user_state(update).collection = collection
         await asyncio.gather(
             update.callback_query.answer(),
             update.effective_message.reply_text(
-                _('Selected collection {topic}').format(topic=Main.to_title(collection, idx)),
+                _('Selected collection: {topic}').format(topic=collection.decorated_title),
+                parse_mode='html',
                 reply_markup=ReplyKeyboardMarkup(
                     [[KeyboardButton('/next')]],
                     resize_keyboard=True
@@ -175,12 +182,6 @@ class Main:
         state.go_next_word()
 
     # noinspection PyUnusedLocal
-    def get_collection(self, idx) -> Collection:
-        c = config['collections'][idx]
-        link = GitFileLink(c['url'], c['path'], c.get('branch'))
-        return self.git_source.get(link, Main.parse_collection)
-
-    # noinspection PyUnusedLocal
     async def shuffle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
         if not state.collection:
@@ -189,12 +190,37 @@ class Main:
         state.shuffle_entries()
         await update.message.reply_text(_('Shuffled'))
 
+    # noinspection PyUnusedLocal
+    async def info_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        collection: Collection = self.user_state(update).collection
+        if not collection:
+            await update.message.reply_text(_('Choose collection first!'))
+            return
+        await update.message.reply_text(
+            _('Collection info').format(
+                title=collection.title,
+                topic=collection.topic,
+                native_lang=collection.nativeLang,
+                studied_lang=collection.studiedLang,
+                url=collection.link.url,
+                branch=collection.link.branch,
+                path=collection.link.path,
+                entry_count=len(collection.entries)
+            ),
+            parse_mode='html'
+        )
+
     @staticmethod
     async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if isinstance(context.error, CapacityException):
             await update.message.reply_text(_('The bot is busy'))
         else:
             logger.error('Update %s caused an error', update, exc_info=context.error)
+
+    def get_collection(self, idx) -> Collection:
+        c = config['collections'][idx]
+        link = GitFileLink(c['url'], c['path'], c.get('branch'))
+        return self.git_source.get(link, Main.parse_collection)
 
     @staticmethod
     def parse_collection(path: pathlib.Path, link: GitFileLink) -> Collection:
@@ -235,6 +261,11 @@ class Main:
 if __name__ == '__main__':
     with open('deltabanana.yaml', encoding='UTF-8') as config_file:
         config: dict = yaml.safe_load(config_file)
-        _ = gettext.translation('deltabanana', './locales', fallback=False, languages=[config.get('locale', 'en')]).gettext
+        _ = gettext.translation(
+            'deltabanana',
+            './locales',
+            fallback=False,
+            languages=[config.get('locale', 'en')]
+        ).gettext
         logger.info('Starting bot...')
         Main(os.getenv('DELTABANANA_TOKEN'))
