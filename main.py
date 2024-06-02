@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class Collection:
     entries: Tuple[Tuple[str]]
-    nativeLang: str
-    studiedLang: str
+    native_lang: str
+    studied_lang: str
     topic: str
     link: GitFileLink
 
@@ -37,7 +37,7 @@ class Collection:
 
     @property
     def decorated_title(self) -> str:
-        return f'{self.title} {self.nativeLang} {self.studiedLang}'
+        return f'{self.title} {self.native_lang} {self.studied_lang}'
 
 
 class UserState:
@@ -94,7 +94,7 @@ class UserState:
 
     @property
     def word_decoration(self) -> str:
-        return [self.collection.studiedLang, self.collection.nativeLang, '👂'][self.__tupleIdx]
+        return [self.collection.studied_lang, self.collection.native_lang, '👂'][self.__tupleIdx]
 
 
 class Main:
@@ -200,8 +200,8 @@ class Main:
             _('Collection info').format(
                 title=collection.title,
                 topic=collection.topic,
-                native_lang=collection.nativeLang,
-                studied_lang=collection.studiedLang,
+                native_lang=collection.native_lang,
+                studied_lang=collection.studied_lang,
                 url=collection.link.url,
                 branch=collection.link.branch,
                 path=collection.link.path,
