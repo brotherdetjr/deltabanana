@@ -76,7 +76,7 @@ class UserState:
 
     @property
     def current_word(self) -> str:
-        return self.__mutable_entries[self.__entry_idx][self.__tuple_idx_with_mode_applied()]
+        return self.__mutable_entries[self.__entry_idx][self.__tuple_idx_with_mode_applied]
 
     @property
     def reverse_mode(self) -> bool:
@@ -103,9 +103,13 @@ class UserState:
         self.reset_collection()
 
     @property
-    def word_decoration(self) -> str:
-        return [self.collection.studied_lang, self.collection.native_lang, '👂'][self.__tuple_idx_with_mode_applied()]
+    def decorated_word(self) -> str:
+        c = self.collection
+        native_studied_pronunciation_icon = [c.studied_lang, c.native_lang, '👂'][self.__tuple_idx_with_mode_applied]
+        question_answer_icon = ['❔', '❕', ''][self.__tuple_idx]
+        return f'{native_studied_pronunciation_icon} {self.current_word} {question_answer_icon}'
 
+    @property
     def __tuple_idx_with_mode_applied(self) -> int:
         return 1 - self.__tuple_idx if self.__tuple_idx < 2 and self.__reverse_mode else self.__tuple_idx
 
@@ -192,7 +196,7 @@ class Main:
         while not text:
             state.go_next_word()
             text = state.current_word.strip()
-        await self.app.bot.send_message(state.chat_id, f'{state.word_decoration} {text}')
+        await self.app.bot.send_message(state.chat_id, state.decorated_word)
         state.go_next_word()
 
     # noinspection PyUnusedLocal
