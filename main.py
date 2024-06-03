@@ -1,8 +1,10 @@
 import csv
+import datetime
 import gettext
 import logging.config
 import os.path
 from dataclasses import dataclass
+from datetime import timedelta
 from random import shuffle
 from typing import List, Tuple
 
@@ -11,7 +13,8 @@ import pathlib
 import yaml
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
     ReplyKeyboardRemove
-from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue, CallbackQueryHandler
+from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue, CallbackQueryHandler, CallbackContext, \
+    MessageHandler
 
 from caches import LimitedTtlCache, CapacityException
 from gitsource import GitSource, GitFileLink
@@ -47,6 +50,7 @@ class UserState:
     __tuple_idx: int
     __chat_id: int
     __reverse_mode: bool
+    __last_interaction_time: datetime.datetime
 
     def __init__(self, chat_id: int):
         self.__chat_id = chat_id
@@ -59,6 +63,7 @@ class UserState:
     def reset(self) -> None:
         self.__collection = None
         self.__reverse_mode = False
+        self.__last_interaction_time = datetime.datetime.now()
 
     @property
     def collection(self) -> Collection | None:
@@ -94,6 +99,12 @@ class UserState:
             if self.__entry_idx == len(self.__mutable_entries):
                 self.__entry_idx = 0
 
+    def roll(self, stick_to_question: bool) -> None:
+        text: str = self.current_word.strip()
+        while not text or stick_to_question and self.__tuple_idx_with_mode_applied > 0:
+            self.go_next_word()
+            text = self.current_word.strip()
+
     def reset_collection(self) -> None:
         self.__entry_idx = 0
         self.__tuple_idx = 0
@@ -108,6 +119,14 @@ class UserState:
         native_studied_pronunciation_icon = [c.studied_lang, c.native_lang, '👂'][self.__tuple_idx_with_mode_applied]
         question_answer_icon = ['❓', '❗', ''][self.__tuple_idx]
         return f'{native_studied_pronunciation_icon} {self.current_word.strip()} {question_answer_icon}'
+
+    @property
+    def idling(self) -> bool:
+        idling_interval_seconds = config.get('idling_interval_seconds', 86400)
+        return datetime.datetime.now() - self.__last_interaction_time > timedelta(seconds=idling_interval_seconds)
+
+    def update_last_interaction_time(self) -> None:
+        self.__last_interaction_time = datetime.datetime.now()
 
     @property
     def __tuple_idx_with_mode_applied(self) -> int:
@@ -125,19 +144,28 @@ class Main:
             ttl=config.get('active_user_sessions', {}).get('inactivity_timeout_seconds', 604800)
         )
         app = Application.builder().token(bot_token).job_queue(JobQueue()).build()
-        app.add_handler(CommandHandler('start', self.start_command))
-        app.add_handler(CommandHandler('next', self.next_command))
-        app.add_handler(CommandHandler('shuffle', self.shuffle_command))
-        app.add_handler(CommandHandler('reverse', self.reverse_command))
-        app.add_handler(CommandHandler('info', self.info_command))
-        app.add_handler(CallbackQueryHandler(self.collection_button))
+        app.add_handlers([
+            MessageHandler(None, self.interaction_callback),
+            CallbackQueryHandler(self.interaction_callback)
+        ], 1)
+        app.add_handlers([
+            CommandHandler('start', self.start_command),
+            CommandHandler('next', self.next_command),
+            CommandHandler('shuffle', self.shuffle_command),
+            CommandHandler('reverse', self.reverse_command),
+            CommandHandler('info', self.info_command),
+            CallbackQueryHandler(self.collection_button)
+        ])
         app.add_error_handler(self.error)
         self.git_source = GitSource(
             refresh_callback=self.on_refresh,
             refresh_rate_seconds=config.get('collection_refresh_rate_seconds', 600)
         )
         self.app = app
-        logger.info('Polling...')
+        app.job_queue.run_repeating(
+            callback=self.nudge_users,
+            interval=timedelta(seconds=config.get('nudge_users_job_interval_seconds', 300))
+        )
         app.run_polling(poll_interval=config.get('bot_poll_interval_seconds', 2))
 
     def user_state(self, update: Update) -> UserState:
@@ -166,9 +194,11 @@ class Main:
             update.message.reply_text(_('Collections'), reply_markup=reply_markup)
         )
 
+    # noinspection PyUnusedLocal
     async def collection_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        state: UserState = self.user_state(update)
         collection = self.get_collection(int(update.callback_query.data))
-        self.user_state(update).collection = collection
+        state.collection = collection
         await asyncio.gather(
             update.callback_query.answer(),
             update.effective_message.reply_text(
@@ -180,24 +210,12 @@ class Main:
                 )
             )
         )
-        await self.next_command(update, context)
+        await self.show_next_command(state)
 
     # noinspection PyUnusedLocal
     async def next_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
-        if not state.collection:
-            await update.message.reply_text(_('Choose collection first!'))
-            return
-        if not state.has_entries:
-            await update.message.reply_text(_('No entries in collection!'))
-            return
-
-        text: str = state.current_word.strip()
-        while not text:
-            state.go_next_word()
-            text = state.current_word.strip()
-        await self.app.bot.send_message(state.chat_id, state.decorated_word)
-        state.go_next_word()
+        await self.show_next_command(state)
 
     # noinspection PyUnusedLocal
     async def shuffle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -220,7 +238,8 @@ class Main:
 
     # noinspection PyUnusedLocal
     async def info_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        collection: Collection = self.user_state(update).collection
+        state: UserState = self.user_state(update)
+        collection: Collection = state.collection
         if not collection:
             await update.message.reply_text(_('Choose collection first!'))
             return
@@ -238,12 +257,37 @@ class Main:
             parse_mode='html'
         )
 
+    # noinspection PyUnusedLocal
+    async def interaction_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        self.user_state(update).update_last_interaction_time()
+
     @staticmethod
     async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if isinstance(context.error, CapacityException):
             await update.message.reply_text(_('The bot is busy'))
         else:
             logger.error('Update %s caused an error', update, exc_info=context.error)
+
+    async def show_next_command(self, state: UserState, stick_to_questions: bool = False):
+        chat_id: int = state.chat_id
+        if not state.collection:
+            await self.app.bot.send_message(chat_id, _('Choose collection first!'))
+            return
+        if not state.has_entries:
+            await self.app.bot.send_message(chat_id, _('No entries in collection!'))
+            return
+        state.roll(stick_to_questions)
+        await self.app.bot.send_message(chat_id, state.decorated_word)
+        state.go_next_word()
+
+    # noinspection PyUnusedLocal
+    async def nudge_users(self, ctx: CallbackContext):
+        for username in self.user_states:
+            state: UserState = self.user_states.get(username)
+            if not state.collection or not state.idling:
+                continue
+            await self.show_next_command(state, True)
+            state.update_last_interaction_time()
 
     def get_collection(self, idx) -> Collection:
         c = config['collections'][idx]
