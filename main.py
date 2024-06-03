@@ -286,8 +286,8 @@ class Main:
             state: UserState = self.user_states.get(username)
             if not state.collection or not state.idling:
                 continue
-            await self.show_next_command(state, True)
             state.update_last_interaction_time()
+            ctx.job_queue.run_once(lambda ignore: self.show_next_command(state, True), 0)
 
     def get_collection(self, idx) -> Collection:
         c = config['collections'][idx]
