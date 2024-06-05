@@ -10,6 +10,7 @@ from datetime import timedelta, datetime, time
 from random import shuffle
 from typing import List, Tuple
 
+import json
 import yaml
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
     ReplyKeyboardRemove
@@ -172,7 +173,7 @@ class Main:
             CommandHandler('reverse', self.reverse_command),
             CommandHandler('nudge', self.nudge_command),
             CommandHandler('info', self.info_command),
-            CallbackQueryHandler(self.collection_button)
+            CallbackQueryHandler(self.inline_keyboard_button_handler)
         ])
         app.add_error_handler(self.error)
         self.git_source = GitSource(
@@ -202,7 +203,8 @@ class Main:
         collections_keyboard: List[List[InlineKeyboardButton]] = []
         for idx, ignore in enumerate(config['collections']):
             try:
-                button_markup = [InlineKeyboardButton(self.get_collection(idx).decorated_title, callback_data=idx)]
+                data = json.dumps({'type': 'collection_idx', 'value': idx})
+                button_markup = [InlineKeyboardButton(self.get_collection(idx).decorated_title, callback_data=data)]
                 collections_keyboard.append(button_markup)
             except FileNotFoundError as e:
                 logger.error('Failed to load collection #%s from config file', idx, exc_info=e)
@@ -213,22 +215,27 @@ class Main:
         )
 
     # noinspection PyUnusedLocal
-    async def collection_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def inline_keyboard_button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
-        collection = self.get_collection(int(update.callback_query.data))
-        state.collection = collection
-        await asyncio.gather(
-            update.callback_query.answer(),
-            update.effective_message.reply_text(
-                _('selected_collection').format(title=collection.decorated_title, topic=collection.topic),
-                parse_mode='html',
-                reply_markup=ReplyKeyboardMarkup(
-                    [[KeyboardButton('/next')]],
-                    resize_keyboard=True
+        data: dict = json.loads(update.callback_query.data)
+        data_type: str = data['type']
+        if data_type == 'collection_idx':
+            collection = self.get_collection(int(data['value']))
+            state.collection = collection
+            await asyncio.gather(
+                update.callback_query.answer(),
+                update.effective_message.reply_text(
+                    _('selected_collection').format(title=collection.decorated_title, topic=collection.topic),
+                    parse_mode='html',
+                    reply_markup=ReplyKeyboardMarkup(
+                        [[KeyboardButton('/next')]],
+                        resize_keyboard=True
+                    )
                 )
             )
-        )
-        await self.show_next_command(state)
+            await self.show_next_command(state)
+        elif data_type == 'nudge_request':
+            logger.info(f"Nudge: {data['value']}")
 
     # noinspection PyUnusedLocal
     async def next_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -254,13 +261,15 @@ class Main:
         lang: str = state.collection.native_lang if state.reverse_mode else state.collection.studied_lang
         await update.message.reply_text(_('reverse_mode_toggle').format(lang=lang))
 
+    # noinspection PyUnusedLocal
     async def nudge_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
         state.reset_nudge()
         reply_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton('Включить', callback_data=0)],
-            [InlineKeyboardButton('Отключить', callback_data=1)],
-            [InlineKeyboardButton('Что это?', callback_data=2)]
+            # TODO
+            [InlineKeyboardButton('Установить', callback_data=Main.nudge_req('SET'))],
+            [InlineKeyboardButton('Сбросить', callback_data=Main.nudge_req('RESET'))],
+            [InlineKeyboardButton('Что это?', callback_data=Main.nudge_req('HELP'))]
         ])
         await update.message.reply_text('⏰ Напоминания', reply_markup=reply_markup)
 
@@ -354,6 +363,10 @@ class Main:
     async def remove_chat_buttons(self, chat_id: int, msg_text: str = '👻'):
         msg = await self.app.bot.send_message(chat_id, msg_text, reply_markup=ReplyKeyboardRemove())
         await msg.delete()
+
+    @staticmethod
+    def nudge_req(value: str) -> str:
+        return json.dumps({'type': 'nudge_request', 'value': value})
 
 
 if __name__ == '__main__':
