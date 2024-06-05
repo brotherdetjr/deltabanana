@@ -3,28 +3,28 @@ msgstr ""
 "Language: en\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "Word collection has been modified externally!"
-msgstr "ℹ Word collection has been modified externally!"
+msgid "collection_modified_externally"
+msgstr "ℹ Collection has been modified externally!"
 
 msgid "selected_collection"
 msgstr "<b>Selected collection:</b> {title}\n{topic}"
 
-msgid "No entries in collection!"
+msgid "empty_collection"
 msgstr "🚫 No entries in collection!"
 
-msgid "Shuffled"
+msgid "shuffled"
 msgstr "🔀"
 
-msgid "The bot is busy"
+msgid "bot_busy"
 msgstr "✋ The bot is too busy now. Try again later!"
 
-msgid "Collections"
+msgid "collections"
 msgstr "📚 Collections"
 
-msgid "Choose collection first!"
+msgid "select_collection"
 msgstr "✋ Choose collection first!"
 
-msgid "Collection info"
+msgid "collection_info"
 msgstr "<b>Collection:</b> {title}\n\
 <b>Topic:</b> {topic}\n\
 <b>Native language:</b> {native_lang}\n\
@@ -34,11 +34,11 @@ msgstr "<b>Collection:</b> {title}\n\
 <b>Path in repo:</b> {path}\n\
 <b>Entry count:</b> {entry_count}"
 
-msgid "Reverse mode toggle: {lang} goes first"
+msgid "reverse_mode_toggle"
 msgstr "🔁 Reverse mode toggle: {lang} goes first"
 
-msgid "Nudge activated"
+msgid "nudge_activated"
 msgstr "🔔 Nudge activated"
 
-msgid "Nudge deactivated"
+msgid "nudge_deactivated"
 msgstr "🔕 Nudge deactivated"

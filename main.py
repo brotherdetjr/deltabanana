@@ -209,7 +209,7 @@ class Main:
         reply_markup = InlineKeyboardMarkup(collections_keyboard)
         await asyncio.gather(
             self.remove_chat_buttons(update.effective_chat.id),
-            update.message.reply_text(_('Collections'), reply_markup=reply_markup)
+            update.message.reply_text(_('collections'), reply_markup=reply_markup)
         )
 
     # noinspection PyUnusedLocal
@@ -239,20 +239,20 @@ class Main:
     async def shuffle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
         if not state.collection:
-            await update.message.reply_text(_('Choose collection first!'))
+            await update.message.reply_text(_('select_collection'))
             return
         state.shuffle_entries()
-        await update.message.reply_text(_('Shuffled'))
+        await update.message.reply_text(_('shuffled'))
 
     # noinspection PyUnusedLocal
     async def reverse_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
         if not state.collection:
-            await update.message.reply_text(_('Choose collection first!'))
+            await update.message.reply_text(_('select_collection'))
             return
         state.toggle_reverse_mode()
         lang: str = state.collection.native_lang if state.reverse_mode else state.collection.studied_lang
-        await update.message.reply_text(_('Reverse mode toggle: {lang} goes first').format(lang=lang))
+        await update.message.reply_text(_('reverse_mode_toggle').format(lang=lang))
 
     async def nudge_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
@@ -269,10 +269,10 @@ class Main:
         state: UserState = self.user_state(update)
         collection: Collection = state.collection
         if not collection:
-            await update.message.reply_text(_('Choose collection first!'))
+            await update.message.reply_text(_('select_collection'))
             return
         await update.message.reply_text(
-            _('Collection info').format(
+            _('collection_info').format(
                 title=collection.title,
                 topic=collection.topic,
                 native_lang=collection.native_lang,
@@ -292,17 +292,17 @@ class Main:
     @staticmethod
     async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if isinstance(context.error, CapacityException):
-            await update.message.reply_text(_('The bot is busy'))
+            await update.message.reply_text(_('bot_busy'))
         else:
             logger.error('Update %s caused an error', update, exc_info=context.error)
 
     async def show_next_command(self, state: UserState, stick_to_questions: bool = False):
         chat_id: int = state.chat_id
         if not state.collection:
-            await self.app.bot.send_message(chat_id, _('Choose collection first!'))
+            await self.app.bot.send_message(chat_id, _('select_collection'))
             return
         if not state.has_entries:
-            await self.app.bot.send_message(chat_id, _('No entries in collection!'))
+            await self.app.bot.send_message(chat_id, _('empty_collection'))
             return
         state.roll(stick_to_questions)
         await self.app.bot.send_message(chat_id, state.decorated_word)
@@ -344,14 +344,14 @@ class Main:
                 self.app.job_queue.run_once(
                     lambda ignore: self.app.bot.send_message(
                         state.chat_id,
-                        _('Word collection has been modified externally!')
+                        _('collection_modified_externally')
                     ),
                     0
                 )
             except FileNotFoundError as e:
                 logger.error('Failed to refresh collection %s', link, exc_info=e)
 
-    async def remove_chat_buttons(self, chat_id: int, msg_text: str = 'You are not supposed to see this'):
+    async def remove_chat_buttons(self, chat_id: int, msg_text: str = '👻'):
         msg = await self.app.bot.send_message(chat_id, msg_text, reply_markup=ReplyKeyboardRemove())
         await msg.delete()
 
