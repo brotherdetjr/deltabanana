@@ -6,11 +6,11 @@ msgstr ""
 msgid "Word collection has been modified externally!"
 msgstr "ℹ Word collection has been modified externally!"
 
-msgid "Selected collection: {topic}"
-msgstr "<b>Selected collection:</b> {topic}"
+msgid "selected_collection"
+msgstr "<b>Selected collection:</b> {title}\n{topic}"
 
 msgid "No entries in collection!"
-msgstr "🪹 No entries in collection!"
+msgstr "🚫 No entries in collection!"
 
 msgid "Shuffled"
 msgstr "🔀"
@@ -19,13 +19,13 @@ msgid "The bot is busy"
 msgstr "✋ The bot is too busy now. Try again later!"
 
 msgid "Collections"
-msgstr "Collections:"
+msgstr "📚 Collections"
 
 msgid "Choose collection first!"
 msgstr "✋ Choose collection first!"
 
 msgid "Collection info"
-msgstr "<b>Title:</b> {title}\n\
+msgstr "<b>Collection:</b> {title}\n\
 <b>Topic:</b> {topic}\n\
 <b>Native language:</b> {native_lang}\n\
 <b>Studied language:</b> {studied_lang}\n\
@@ -36,3 +36,9 @@ msgstr "<b>Title:</b> {title}\n\
 
 msgid "Reverse mode toggle: {lang} goes first"
 msgstr "🔁 Reverse mode toggle: {lang} goes first"
+
+msgid "Nudge activated"
+msgstr "🔔 Nudge activated"
+
+msgid "Nudge deactivated"
+msgstr "🔕 Nudge deactivated"

@@ -4,12 +4,12 @@ import json
 import logging
 import os.path
 from dataclasses import dataclass, field
+from pathlib import Path
 from threading import RLock
 from typing import Any, Callable, TypeVar
 
 from dulwich import porcelain
 from dulwich.porcelain import NoneStream
-from pathlib import Path
 
 from caches import RefreshCache
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class GitFileLink:
     url: str
     path: str
-    branch: str = field(default='main')
+    branch: str
 
 
 @dataclass(frozen=True)

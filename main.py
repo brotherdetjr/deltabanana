@@ -1,15 +1,15 @@
+import asyncio
 import csv
 import datetime
 import gettext
 import logging.config
 import os.path
+import pathlib
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import timedelta, datetime, time
 from random import shuffle
 from typing import List, Tuple
 
-import asyncio
-import pathlib
 import yaml
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
     ReplyKeyboardRemove
@@ -23,6 +23,10 @@ logging.config.fileConfig('logging.conf')
 logger = logging.getLogger(__name__)
 
 
+def to_git_file_link(c: dict[str, str]):
+    return GitFileLink(c['url'], c['path'], c.get('branch', 'main'))
+
+
 @dataclass(frozen=True)
 class Collection:
     entries: Tuple[Tuple[str]]
@@ -34,7 +38,7 @@ class Collection:
     @property
     def title(self) -> str:
         for idx, c in enumerate(config['collections']):
-            if GitFileLink(c['url'], c['path'], c.get('branch')) == self.link:
+            if to_git_file_link(c) == self.link:
                 return config['collections'][idx]['title']
         raise IndexError
 
@@ -50,7 +54,9 @@ class UserState:
     __tuple_idx: int
     __chat_id: int
     __reverse_mode: bool
-    __last_interaction_time: datetime.datetime
+    __last_interaction_time: datetime
+    __nudge_start_time: time | None
+    __nudge_stop_time: time | None
 
     def __init__(self, chat_id: int):
         self.__chat_id = chat_id
@@ -63,7 +69,12 @@ class UserState:
     def reset(self) -> None:
         self.__collection = None
         self.__reverse_mode = False
-        self.__last_interaction_time = datetime.datetime.now()
+        self.__last_interaction_time = datetime.now()
+        self.reset_nudge()
+
+    def reset_nudge(self) -> None:
+        self.__nudge_start_time = None
+        self.__nudge_stop_time = None
 
     @property
     def collection(self) -> Collection | None:
@@ -123,10 +134,16 @@ class UserState:
     @property
     def idling(self) -> bool:
         idling_interval_seconds = config.get('idling_interval_seconds', 86400)
-        return datetime.datetime.now() - self.__last_interaction_time > timedelta(seconds=idling_interval_seconds)
+        return datetime.now() - self.__last_interaction_time > timedelta(seconds=idling_interval_seconds)
+
+    @property
+    def is_nudge_time(self) -> bool:
+        now = datetime.now()
+        return self.__nudge_start_time and self.__nudge_stop_time \
+            and datetime.combine(now, self.__nudge_start_time) <= now < datetime.combine(now, self.__nudge_stop_time)
 
     def update_last_interaction_time(self) -> None:
-        self.__last_interaction_time = datetime.datetime.now()
+        self.__last_interaction_time = datetime.now()
 
     @property
     def __tuple_idx_with_mode_applied(self) -> int:
@@ -153,6 +170,7 @@ class Main:
             CommandHandler('next', self.next_command),
             CommandHandler('shuffle', self.shuffle_command),
             CommandHandler('reverse', self.reverse_command),
+            CommandHandler('nudge', self.nudge_command),
             CommandHandler('info', self.info_command),
             CallbackQueryHandler(self.collection_button)
         ])
@@ -181,7 +199,7 @@ class Main:
     # noinspection PyUnusedLocal
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.user_state(update).reset()
-        collections_keyboard = []
+        collections_keyboard: List[List[InlineKeyboardButton]] = []
         for idx, ignore in enumerate(config['collections']):
             try:
                 button_markup = [InlineKeyboardButton(self.get_collection(idx).decorated_title, callback_data=idx)]
@@ -202,7 +220,7 @@ class Main:
         await asyncio.gather(
             update.callback_query.answer(),
             update.effective_message.reply_text(
-                _('Selected collection: {topic}').format(topic=collection.decorated_title),
+                _('selected_collection').format(title=collection.decorated_title, topic=collection.topic),
                 parse_mode='html',
                 reply_markup=ReplyKeyboardMarkup(
                     [[KeyboardButton('/next')]],
@@ -235,6 +253,16 @@ class Main:
         state.toggle_reverse_mode()
         lang: str = state.collection.native_lang if state.reverse_mode else state.collection.studied_lang
         await update.message.reply_text(_('Reverse mode toggle: {lang} goes first').format(lang=lang))
+
+    async def nudge_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        state: UserState = self.user_state(update)
+        state.reset_nudge()
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton('Включить', callback_data=0)],
+            [InlineKeyboardButton('Отключить', callback_data=1)],
+            [InlineKeyboardButton('Что это?', callback_data=2)]
+        ])
+        await update.message.reply_text('⏰ Напоминания', reply_markup=reply_markup)
 
     # noinspection PyUnusedLocal
     async def info_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -284,15 +312,13 @@ class Main:
     async def nudge_users(self, ctx: CallbackContext):
         for username in self.user_states:
             state: UserState = self.user_states.get(username)
-            if not state.collection or not state.idling:
+            if not state.collection or not state.idling or not state.is_nudge_time:
                 continue
             state.update_last_interaction_time()
             ctx.job_queue.run_once(lambda ignore: self.show_next_command(state, True), 0)
 
     def get_collection(self, idx) -> Collection:
-        c = config['collections'][idx]
-        link = GitFileLink(c['url'], c['path'], c.get('branch'))
-        return self.git_source.get(link, Main.parse_collection)
+        return self.git_source.get(to_git_file_link(config['collections'][idx]), Main.parse_collection)
 
     @staticmethod
     def parse_collection(path: pathlib.Path, link: GitFileLink) -> Collection:
@@ -333,11 +359,11 @@ class Main:
 if __name__ == '__main__':
     with open('deltabanana.yaml', encoding='UTF-8') as config_file:
         config: dict = yaml.safe_load(config_file)
-        _ = gettext.translation(
+        gettext.translation(
             'deltabanana',
             './locales',
             fallback=False,
             languages=[config.get('locale', 'en')]
-        ).gettext
+        ).install(['gettext', 'ngettext'])
         logger.info('Starting bot...')
         Main(os.getenv('DELTABANANA_TOKEN'))

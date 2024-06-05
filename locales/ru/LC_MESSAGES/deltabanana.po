@@ -6,11 +6,11 @@ msgstr ""
 msgid "Word collection has been modified externally!"
 msgstr "ℹ Словарик был изменён в источнике!"
 
-msgid "Selected collection: {topic}"
-msgstr "<b>Выбран словарик:</b> {topic}"
+msgid "selected_collection"
+msgstr "<b>Выбран словарик:</b> {title}\n{topic}"
 
 msgid "No entries in collection!"
-msgstr "🪹 Словарик пуст!"
+msgstr "🚫 Словарик пуст!"
 
 msgid "Shuffled"
 msgstr "🔀"
@@ -19,13 +19,13 @@ msgid "The bot is busy"
 msgstr "✋ Бот слишком занят. Попробуйте позже!"
 
 msgid "Collections"
-msgstr "Словарики:"
+msgstr "📚 Словарики"
 
 msgid "Choose collection first!"
 msgstr "✋ Сперва выберите словарик!"
 
 msgid "Collection info"
-msgstr "<b>Название:</b> {title}\n\
+msgstr "<b>Словарик:</b> {title}\n\
 <b>Тема:</b> {topic}\n\
 <b>Родной язык:</b> {native_lang}\n\
 <b>Изучаемый язык:</b> {studied_lang}\n\
@@ -36,3 +36,9 @@ msgstr "<b>Название:</b> {title}\n\
 
 msgid "Reverse mode toggle: {lang} goes first"
 msgstr "🔁 Порядок вывода изменён. Первым выводится {lang}"
+
+msgid "Nudge activated"
+msgstr "🔔 Напоминания включены"
+
+msgid "Nudge deactivated"
+msgstr "🔕 Напоминания выключены"
