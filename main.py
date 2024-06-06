@@ -2,15 +2,15 @@ import asyncio
 import csv
 import datetime
 import gettext
+import json
 import logging.config
 import os.path
 import pathlib
 from dataclasses import dataclass
-from datetime import timedelta, datetime, time
+from datetime import timedelta, datetime
 from random import shuffle
 from typing import List, Tuple
 
-import json
 import yaml
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
     ReplyKeyboardRemove
@@ -19,6 +19,7 @@ from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue, Ca
 
 from caches import LimitedTtlCache, CapacityException
 from gitsource import GitSource, GitFileLink
+from timeinterval import TimeInterval
 
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger(__name__)
@@ -56,8 +57,7 @@ class UserState:
     __chat_id: int
     __reverse_mode: bool
     __last_interaction_time: datetime
-    __nudge_start_time: time | None
-    __nudge_stop_time: time | None
+    __nudge_time_interval: TimeInterval | None
 
     def __init__(self, chat_id: int):
         self.__chat_id = chat_id
@@ -74,8 +74,11 @@ class UserState:
         self.reset_nudge()
 
     def reset_nudge(self) -> None:
-        self.__nudge_start_time = None
-        self.__nudge_stop_time = None
+        self.__nudge_time_interval = None
+
+    def set_nudge(self) -> None:
+        span: int = config.get('active_nudge_interval_seconds', 43200)
+        self.__nudge_time_interval = TimeInterval(datetime.now().time(), timedelta(seconds=span))
 
     @property
     def collection(self) -> Collection | None:
@@ -134,14 +137,14 @@ class UserState:
 
     @property
     def idling(self) -> bool:
-        idling_interval_seconds = config.get('idling_interval_seconds', 86400)
+        idling_interval_seconds = config.get('idling_interval_seconds', 7200)
         return datetime.now() - self.__last_interaction_time > timedelta(seconds=idling_interval_seconds)
 
     @property
     def is_nudge_time(self) -> bool:
-        now = datetime.now()
-        return self.__nudge_start_time and self.__nudge_stop_time \
-            and datetime.combine(now, self.__nudge_start_time) <= now < datetime.combine(now, self.__nudge_stop_time)
+        if not self.__nudge_time_interval:
+            return False
+        return self.__nudge_time_interval.covers(datetime.now())
 
     def update_last_interaction_time(self) -> None:
         self.__last_interaction_time = datetime.now()
@@ -215,29 +218,6 @@ class Main:
         )
 
     # noinspection PyUnusedLocal
-    async def inline_keyboard_button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        state: UserState = self.user_state(update)
-        data: dict = json.loads(update.callback_query.data)
-        data_type: str = data['type']
-        if data_type == 'collection_idx':
-            collection = self.get_collection(int(data['value']))
-            state.collection = collection
-            await asyncio.gather(
-                update.callback_query.answer(),
-                update.effective_message.reply_text(
-                    _('selected_collection').format(title=collection.decorated_title, topic=collection.topic),
-                    parse_mode='html',
-                    reply_markup=ReplyKeyboardMarkup(
-                        [[KeyboardButton('/next')]],
-                        resize_keyboard=True
-                    )
-                )
-            )
-            await self.show_next_command(state)
-        elif data_type == 'nudge_request':
-            logger.info(f"Nudge: {data['value']}")
-
-    # noinspection PyUnusedLocal
     async def next_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
         await self.show_next_command(state)
@@ -295,8 +275,48 @@ class Main:
         )
 
     # noinspection PyUnusedLocal
+    async def inline_keyboard_button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        state: UserState = self.user_state(update)
+        data: dict = json.loads(update.callback_query.data)
+        data_type: str = data['type']
+        value: Any = data['value']
+        if data_type == 'collection_idx':
+            collection = self.get_collection(int(value))
+            state.collection = collection
+            await asyncio.gather(
+                update.callback_query.answer(),
+                update.effective_message.reply_text(
+                    _('selected_collection').format(title=collection.decorated_title, topic=collection.topic),
+                    parse_mode='html',
+                    reply_markup=ReplyKeyboardMarkup(
+                        [[KeyboardButton('/next')]],
+                        resize_keyboard=True
+                    )
+                )
+            )
+            await self.show_next_command(state)
+        elif data_type == 'nudge_request':
+            await asyncio.gather(
+                update.callback_query.answer(),
+                self.handle_nudge_request(str(value), state)
+            )
+
+    # noinspection PyUnusedLocal
     async def interaction_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.user_state(update).update_last_interaction_time()
+
+    def handle_nudge_request(self, value: str, state: UserState):
+        response_text: str
+        if value == 'SET':
+            state.set_nudge()
+            response_text = _('nudge_activated')
+        elif value == 'RESET':
+            state.reset_nudge()
+            response_text = _('nudge_deactivated')
+        else:
+            # TODO
+            response_text = 'blahblahblah'
+        return self.app.bot.send_message(state.chat_id, response_text)
 
     @staticmethod
     async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
