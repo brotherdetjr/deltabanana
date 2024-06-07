@@ -4,7 +4,7 @@ import os.path
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import RLock
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, List
 
 from dulwich import porcelain
 from dulwich.porcelain import NoneStream
@@ -33,6 +33,7 @@ class _CachedFiles:
     rev: str
     lock: RLock
     content: dict[str, Any] = field(default_factory=lambda: {})
+    changes: List[Any] = field(default_factory=lambda: [])
 
 
 T = TypeVar("T")
@@ -55,19 +56,28 @@ class GitSource:
         )
 
     def get(self, link: GitFileLink, map_func: Callable[[Path, GitFileLink], T]) -> T:
+        return self.__locked(link, lambda f: GitSource.__get(link, f.content, map_func))
+
+    def register_change(self, link: GitFileLink, change: Any) -> None:
+        self.__locked(link, lambda f: f.changes.append(change))
+
+    def __locked(self, link: GitFileLink, action: Callable[[_CachedFiles], T]) -> T:
         repo_link = _GitRepoLink(link.url, link.branch)
         with self.__link_cache.get(repo_link).lock:
             # Lock doesn't change when created, but self.__link_cache.get(repo_link)
             # can change between a retrieval of the lock from cache and lock acquisition itself.
             # So 'doubled' self.__link_cache.get(repo_link) is needed.
-            content: dict[str, T] = self.__link_cache.get(repo_link).content
-            value = content.get(link.path)
-            if value is not None:
-                return value
-            else:
-                new_value = map_func(Path(link.dir_name(), link.path), link)
-                content[link.path] = new_value
-                return new_value
+            return action(self.__link_cache.get(repo_link))
+
+    @staticmethod
+    def __get(link: GitFileLink, content: dict[str, T], map_func: Callable[[Path, GitFileLink], T]) -> T:
+        value = content.get(link.path)
+        if value is not None:
+            return value
+        else:
+            new_value = map_func(Path(link.dir_name(), link.path), link)
+            content[link.path] = new_value
+            return new_value
 
     @staticmethod
     def __sync_repo(link: _GitRepoLink, old_files: _CachedFiles) -> _CachedFiles:
