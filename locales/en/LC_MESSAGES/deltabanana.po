@@ -22,7 +22,7 @@ msgid "collections"
 msgstr "📚 Collections"
 
 msgid "select_collection"
-msgstr "✋ Choose collection first!"
+msgstr "✋ Choose collection first! /start"
 
 msgid "collection_info"
 msgstr "<b>Collection:</b> {title}\n\
@@ -42,3 +42,25 @@ msgstr "🔔 Nudge activated"
 
 msgid "nudge_deactivated"
 msgstr "🔕 Nudge deactivated"
+
+msgid "nudge_title"
+msgstr "⏰ Nudge"
+
+msgid "nudge_button_set"
+msgstr "Set"
+
+msgid "nudge_button_reset"
+msgstr "Reset"
+
+msgid "nudge_button_help"
+msgstr "What is this?"
+
+msgid "nudge_remember_select_collection"
+msgstr "ℹ Remember to select a collection to get nudged!"
+
+msgid "nudge_help_text"
+msgstr "⏰ The Telegram bot does not know the user's time zone. \
+Therefore, by clicking \"Set,\" you mark the start of a {hour}-hour interval \
+during which you will be receiving reminders occasionally - words from the selected collection. \
+Reminders will be sent at the specified time on subsequent days as well. \
+To stop receiving reminders, click \"Reset.\""

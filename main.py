@@ -9,7 +9,7 @@ import pathlib
 from dataclasses import dataclass
 from datetime import timedelta, datetime
 from random import shuffle
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 import yaml
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
@@ -58,9 +58,12 @@ class UserState:
     __reverse_mode: bool
     __last_interaction_time: datetime
     __nudge_time_interval: TimeInterval | None
+    __nudge_menu_msg: Any
 
     def __init__(self, chat_id: int):
         self.__chat_id = chat_id
+        self.__nudge_time_interval = None
+        self.__nudge_menu_msg = None
         self.reset()
 
     @property
@@ -71,14 +74,17 @@ class UserState:
         self.__collection = None
         self.__reverse_mode = False
         self.__last_interaction_time = datetime.now()
-        self.reset_nudge()
 
     def reset_nudge(self) -> None:
         self.__nudge_time_interval = None
 
     def set_nudge(self) -> None:
-        span: int = config.get('active_nudge_interval_seconds', 43200)
+        span: int = config.get('nudge', {}).get('active_interval_seconds', 43200)
         self.__nudge_time_interval = TimeInterval(datetime.now().time(), timedelta(seconds=span))
+
+    @property
+    def nudge_is_set(self) -> bool:
+        return self.__nudge_time_interval is not None
 
     @property
     def collection(self) -> Collection | None:
@@ -137,7 +143,7 @@ class UserState:
 
     @property
     def idling(self) -> bool:
-        idling_interval_seconds = config.get('idling_interval_seconds', 7200)
+        idling_interval_seconds = config.get('nudge', {}).get('idling_interval_seconds', 7200)
         return datetime.now() - self.__last_interaction_time > timedelta(seconds=idling_interval_seconds)
 
     @property
@@ -152,6 +158,19 @@ class UserState:
     @property
     def __tuple_idx_with_mode_applied(self) -> int:
         return 1 - self.__tuple_idx if self.__tuple_idx < 2 and self.__reverse_mode else self.__tuple_idx
+
+    @property
+    def nudge_menu_msg(self) -> Any:
+        return self.__nudge_menu_msg
+
+    @nudge_menu_msg.setter
+    def nudge_menu_msg(self, msg: Any) -> None:
+        self.__nudge_menu_msg = msg
+
+    async def delete_nudge_menu(self) -> None:
+        if self.__nudge_menu_msg is not None:
+            await self.__nudge_menu_msg.delete()
+            self.__nudge_menu_msg = None
 
 
 class Main:
@@ -186,7 +205,7 @@ class Main:
         self.app = app
         app.job_queue.run_repeating(
             callback=self.nudge_users,
-            interval=timedelta(seconds=config.get('nudge_users_job_interval_seconds', 300))
+            interval=timedelta(seconds=config.get('nudge', {}).get('job_interval_seconds', 300))
         )
         app.run_polling(poll_interval=config.get('bot_poll_interval_seconds', 2))
 
@@ -202,7 +221,9 @@ class Main:
 
     # noinspection PyUnusedLocal
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        self.user_state(update).reset()
+        state: UserState = self.user_state(update)
+        state.reset()
+        await state.delete_nudge_menu()
         collections_keyboard: List[List[InlineKeyboardButton]] = []
         for idx, ignore in enumerate(config['collections']):
             try:
@@ -244,14 +265,15 @@ class Main:
     # noinspection PyUnusedLocal
     async def nudge_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
-        state.reset_nudge()
+        if state.nudge_menu_msg:
+            await state.delete_nudge_menu()
+        button = InlineKeyboardButton(_('nudge_button_reset'), callback_data=Main.nudge_req('RESET')) \
+            if state.nudge_is_set else InlineKeyboardButton(_('nudge_button_set'), callback_data=Main.nudge_req('SET'))
         reply_markup = InlineKeyboardMarkup([
-            # TODO
-            [InlineKeyboardButton('Установить', callback_data=Main.nudge_req('SET'))],
-            [InlineKeyboardButton('Сбросить', callback_data=Main.nudge_req('RESET'))],
-            [InlineKeyboardButton('Что это?', callback_data=Main.nudge_req('HELP'))]
+            [button],
+            [InlineKeyboardButton(_('nudge_button_help'), callback_data=Main.nudge_req('HELP'))]
         ])
-        await update.message.reply_text('⏰ Напоминания', reply_markup=reply_markup)
+        state.nudge_menu_msg = await update.message.reply_text(_('nudge_title'), reply_markup=reply_markup)
 
     # noinspection PyUnusedLocal
     async def info_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -296,27 +318,28 @@ class Main:
             )
             await self.show_next_command(state)
         elif data_type == 'nudge_request':
-            await asyncio.gather(
-                update.callback_query.answer(),
-                self.handle_nudge_request(str(value), state)
-            )
+            await update.callback_query.answer()
+            if value == 'SET':
+                state.set_nudge()
+                await asyncio.gather(
+                    state.delete_nudge_menu(),
+                    self.app.bot.send_message(state.chat_id, _('nudge_activated'))
+                )
+                if not state.collection:
+                    await self.app.bot.send_message(state.chat_id, _('nudge_remember_select_collection'))
+            elif value == 'RESET':
+                state.reset_nudge()
+                await asyncio.gather(
+                    state.delete_nudge_menu(),
+                    self.app.bot.send_message(state.chat_id, _('nudge_deactivated'))
+                )
+            else:
+                hours: int = round(config.get('nudge', {}).get('active_interval_seconds', 43200) / 3600)
+                await self.app.bot.send_message(state.chat_id, _('nudge_help_text').format(hours=hours))
 
     # noinspection PyUnusedLocal
     async def interaction_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.user_state(update).update_last_interaction_time()
-
-    def handle_nudge_request(self, value: str, state: UserState):
-        response_text: str
-        if value == 'SET':
-            state.set_nudge()
-            response_text = _('nudge_activated')
-        elif value == 'RESET':
-            state.reset_nudge()
-            response_text = _('nudge_deactivated')
-        else:
-            # TODO
-            response_text = 'blahblahblah'
-        return self.app.bot.send_message(state.chat_id, response_text)
 
     @staticmethod
     async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
