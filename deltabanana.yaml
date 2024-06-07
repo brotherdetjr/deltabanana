@@ -1,5 +1,7 @@
 locale: ru
-collection_refresh_rate_seconds: 600
+collection_sync:
+  interval_seconds: 60
+  no_change_multiplier: 10
 bot_poll_interval_seconds: 2
 active_user_sessions:
   max_count: 1000

@@ -14,20 +14,20 @@ class RefreshCache(Generic[_K, _V]):
     __cache: dict[_K, _V]
     __load_func: Callable[[_K, _V | None], _V]
     __refresh_callback: Callable[[_K, _V | None, _V], bool]
-    __refresh_rate_seconds: int
+    __sync_interval_seconds: int
 
     def __init__(
             self,
             load_func: Callable[[_K, _V | None], _V],
             refresh_callback: Callable[[_K, _V | None, _V], bool],
-            refresh_rate_seconds: int
+            sync_interval_seconds: int
     ) -> None:
         self.__general_lock = RLock()
         self.__locks = {}
         self.__cache = {}
         self.__load_func = load_func
         self.__refresh_callback = refresh_callback
-        self.__refresh_rate_seconds = refresh_rate_seconds
+        self.__sync_interval_seconds = sync_interval_seconds
 
     def get(self, key: _K) -> _V:
         (lock, just_created) = self.__get_lock(key)
@@ -59,7 +59,7 @@ class RefreshCache(Generic[_K, _V]):
 
     def __schedule(self, key: _K) -> None:
         while True:
-            time.sleep(self.__refresh_rate_seconds)
+            time.sleep(self.__sync_interval_seconds)
             with self.__get_lock(key)[0]:
                 self.__load_and_save(key)
 

@@ -204,7 +204,9 @@ class Main:
         app.add_error_handler(self.error)
         self.git_source = GitSource(
             refresh_callback=self.on_refresh,
-            refresh_rate_seconds=config.get('collection_refresh_rate_seconds', 600)
+            apply_changes_callback=lambda a, b: None,  # TODO
+            sync_interval_seconds=config.get('collection_sync', {}).get('interval_seconds', 60),
+            no_change_sync_interval_multiplier=config.get('collection_sync', {}).get('no_change_multiplier', 10)
         )
         self.app = app
         app.job_queue.run_repeating(

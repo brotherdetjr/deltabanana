@@ -42,17 +42,25 @@ T = TypeVar("T")
 class GitSource:
     __link_cache: RefreshCache[_GitRepoLink, _CachedFiles]
     __refresh_callback: Callable[[str, str], None]
+    __apply_changes_callback: Callable[[List[Any], str], None]
+    __no_change_sync_interval_multiplier: int
+    __sync_skip_count: int
 
     def __init__(
             self,
             refresh_callback: Callable[[str, str], None],
-            refresh_rate_seconds: int = 600
+            apply_changes_callback: Callable[[List[Any], str], None],
+            sync_interval_seconds: int = 60,
+            no_change_sync_interval_multiplier: int = 10
     ) -> None:
         self.__refresh_callback = refresh_callback
+        self.__apply_changes_callback = apply_changes_callback
+        self.__no_change_sync_interval_multiplier = no_change_sync_interval_multiplier
+        self.__sync_skip_count = 0
         self.__link_cache = RefreshCache(
             load_func=self.__sync_repo,
             refresh_callback=self.__on_refresh,
-            refresh_rate_seconds=refresh_rate_seconds
+            sync_interval_seconds=sync_interval_seconds
         )
 
     def get(self, link: GitFileLink, map_func: Callable[[Path, GitFileLink], T]) -> T:
@@ -79,10 +87,14 @@ class GitSource:
             content[link.path] = new_value
             return new_value
 
-    @staticmethod
-    def __sync_repo(link: _GitRepoLink, old_files: _CachedFiles) -> _CachedFiles:
+    def __sync_repo(self, link: _GitRepoLink, old_files: _CachedFiles) -> _CachedFiles:
         lock = old_files.lock if old_files else RLock()
         with lock:
+            if old_files and not old_files.changes and \
+                    self.__sync_skip_count < self.__no_change_sync_interval_multiplier - 1:
+                self.__sync_skip_count += 1
+                return old_files
+            self.__sync_skip_count = 0
             dir_name = link.dir_name()
             if os.path.isdir(dir_name):
                 logger.info(f'Pulling {link} at path {dir_name} ...')
