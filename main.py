@@ -225,9 +225,7 @@ class Main:
 
     # noinspection PyUnusedLocal
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        state: UserState = self.user_state(update)
-        state.reset()
-        await state.delete_nudge_menu()
+        self.user_state(update).reset()
         collections_keyboard: List[List[InlineKeyboardButton]] = []
         for idx, ignore in enumerate(config['collections']):
             try:
