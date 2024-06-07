@@ -14,6 +14,7 @@ from typing import List, Tuple, Any
 import yaml
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
     ReplyKeyboardRemove
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue, CallbackQueryHandler, CallbackContext, \
     MessageHandler
 
@@ -169,8 +170,11 @@ class UserState:
 
     async def delete_nudge_menu(self) -> None:
         if self.__nudge_menu_msg is not None:
-            await self.__nudge_menu_msg.delete()
-            self.__nudge_menu_msg = None
+            try:
+                await self.__nudge_menu_msg.delete()
+                self.__nudge_menu_msg = None
+            except BadRequest:
+                pass
 
 
 class Main:
