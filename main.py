@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def to_git_file_link(c: dict[str, str]):
-    return GitFileLink(c['url'], c['path'], c.get('branch', 'main'))
+    return GitFileLink(c['url'], c.get('branch', 'main'), c['path'])
 
 
 @dataclass(frozen=True)

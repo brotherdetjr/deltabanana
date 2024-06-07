@@ -1,6 +1,4 @@
-import dataclasses
 import hashlib
-import json
 import logging
 import os.path
 from dataclasses import dataclass, field
@@ -17,19 +15,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class GitFileLink:
-    url: str
-    path: str
-    branch: str
-
-
-@dataclass(frozen=True)
 class _GitRepoLink:
     url: str
     branch: str
 
     def dir_name(self) -> str:
-        return '.gitlink_' + hashlib.md5(json.dumps(dataclasses.asdict(self)).encode('utf-8')).hexdigest()
+        return '.gitlink_' + hashlib.md5(f'{self.url}:{self.branch}'.encode('utf-8')).hexdigest()
+
+
+@dataclass(frozen=True)
+class GitFileLink(_GitRepoLink):
+    path: str
 
 
 @dataclass(frozen=True)
@@ -53,7 +49,7 @@ class GitSource:
     ) -> None:
         self.__refresh_callback = refresh_callback
         self.__link_cache = RefreshCache(
-            load_func=self.__update_repo,
+            load_func=self.__sync_repo,
             refresh_callback=self.__on_refresh,
             refresh_rate_seconds=refresh_rate_seconds
         )
@@ -69,12 +65,12 @@ class GitSource:
             if value is not None:
                 return value
             else:
-                new_value = map_func(Path(repo_link.dir_name(), link.path), link)
+                new_value = map_func(Path(link.dir_name(), link.path), link)
                 content[link.path] = new_value
                 return new_value
 
     @staticmethod
-    def __update_repo(link: _GitRepoLink, old_files: _CachedFiles) -> _CachedFiles:
+    def __sync_repo(link: _GitRepoLink, old_files: _CachedFiles) -> _CachedFiles:
         lock = old_files.lock if old_files else RLock()
         with lock:
             dir_name = link.dir_name()
