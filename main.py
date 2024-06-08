@@ -18,6 +18,7 @@ from telegram.error import BadRequest
 from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue, CallbackQueryHandler, CallbackContext, \
     MessageHandler
 
+import cfg
 from caches import LimitedTtlCache, CapacityException
 from gitsource import GitSource, GitFileLink
 from timeinterval import TimeInterval
@@ -26,8 +27,8 @@ logging.config.fileConfig('logging.conf')
 logger = logging.getLogger(__name__)
 
 
-def to_git_file_link(c: dict[str, str]):
-    return GitFileLink(c['url'], c.get('branch', 'main'), c['path'])
+def to_git_file_link(c: cfg.Collection):
+    return GitFileLink(c.url, c.branch, c.path)
 
 
 @dataclass(frozen=True)
@@ -40,9 +41,9 @@ class Collection:
 
     @property
     def title(self) -> str:
-        for idx, c in enumerate(config['collections']):
+        for idx, c in enumerate(config.collections):
             if to_git_file_link(c) == self.link:
-                return config['collections'][idx]['title']
+                return c.title
         raise IndexError()
 
     @property
@@ -80,8 +81,10 @@ class UserState:
         self.__nudge_time_interval = None
 
     def set_nudge(self) -> None:
-        span: int = config.get('nudge', {}).get('active_interval_seconds', 43200)
-        self.__nudge_time_interval = TimeInterval(datetime.now().time(), timedelta(seconds=span))
+        self.__nudge_time_interval = TimeInterval(
+            datetime.now().time(),
+            timedelta(seconds=config.nudge.active_interval_seconds)
+        )
 
     @property
     def nudge_is_set(self) -> bool:
@@ -144,8 +147,7 @@ class UserState:
 
     @property
     def idling(self) -> bool:
-        idling_interval_seconds = config.get('nudge', {}).get('idling_interval_seconds', 7200)
-        return datetime.now() - self.__last_interaction_time > timedelta(seconds=idling_interval_seconds)
+        return datetime.now() - self.__last_interaction_time > timedelta(seconds=config.nudge.idling_interval_seconds)
 
     @property
     def is_nudge_time(self) -> bool:
@@ -184,8 +186,8 @@ class Main:
 
     def __init__(self, bot_token: str):
         self.user_states = LimitedTtlCache(
-            maxsize=config.get('active_user_sessions', {}).get('max_count', 1000),
-            ttl=config.get('active_user_sessions', {}).get('inactivity_timeout_seconds', 604800)
+            maxsize=config.active_user_sessions.max_count,
+            ttl=config.active_user_sessions.inactivity_timeout_seconds
         )
         app = Application.builder().token(bot_token).job_queue(JobQueue()).build()
         app.add_handlers([
@@ -205,16 +207,16 @@ class Main:
         self.git_source = GitSource(
             refresh_callback=self.on_refresh,
             apply_changes_callback=lambda a, b: None,  # TODO
-            sync_interval_seconds=config.get('collection_sync', {}).get('interval_seconds', 60),
-            no_change_sync_interval_multiplier=config.get('collection_sync', {}).get('no_change_multiplier', 10),
-            commit_message=config.get('collection_sync', {}).get('commit_message', 'Commit by deltabanana bot')
+            sync_interval_seconds=config.collection_sync.interval_seconds,
+            no_change_sync_interval_multiplier=config.collection_sync.no_change_multiplier,
+            commit_message=config.collection_sync.commit_message
         )
         self.app = app
         app.job_queue.run_repeating(
             callback=self.nudge_users,
-            interval=timedelta(seconds=config.get('nudge', {}).get('job_interval_seconds', 300))
+            interval=timedelta(seconds=config.nudge.job_interval_seconds)
         )
-        app.run_polling(poll_interval=config.get('bot_poll_interval_seconds', 2))
+        app.run_polling(poll_interval=config.bot_poll_interval_seconds)
 
     def user_state(self, update: Update) -> UserState:
         username = update.effective_user.username
@@ -230,7 +232,7 @@ class Main:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.user_state(update).reset()
         collections_keyboard: List[List[InlineKeyboardButton]] = []
-        for idx, ignore in enumerate(config['collections']):
+        for idx, ignore in enumerate(config.collections):
             try:
                 data = json.dumps({'type': 'collection_idx', 'value': idx})
                 button_markup = [InlineKeyboardButton(self.get_collection(idx).decorated_title, callback_data=data)]
@@ -339,7 +341,7 @@ class Main:
                     self.app.bot.send_message(state.chat_id, _('nudge_deactivated'))
                 )
             else:
-                hours: int = round(config.get('nudge', {}).get('active_interval_seconds', 43200) / 3600)
+                hours: int = round(config.nudge.active_interval_seconds / 3600)
                 await self.app.bot.send_message(state.chat_id, _('nudge_help_text').format(hours=hours))
 
     # noinspection PyUnusedLocal
@@ -375,7 +377,7 @@ class Main:
             ctx.job_queue.run_once(lambda ignore: self.show_next_command(state, True), 0)
 
     def get_collection(self, idx) -> Collection:
-        return self.git_source.get(to_git_file_link(config['collections'][idx]), Main.parse_collection)
+        return self.git_source.get(to_git_file_link(config.collections[idx]), Main.parse_collection)
 
     @staticmethod
     def parse_collection(path: pathlib.Path, link: GitFileLink) -> Collection:
@@ -419,12 +421,12 @@ class Main:
 
 if __name__ == '__main__':
     with open('deltabanana.yaml', encoding='UTF-8') as config_file:
-        config: dict = yaml.safe_load(config_file)
+        config: cfg.Config = cfg.load(config_file)
         gettext.translation(
             'deltabanana',
             './locales',
             fallback=False,
-            languages=[config.get('locale', 'en')]
+            languages=[config.locale]
         ).install(['gettext', 'ngettext'])
         logger.info('Starting bot...')
         Main(os.getenv('DELTABANANA_TOKEN'))
