@@ -133,13 +133,14 @@ class GitSource:
                 for key, group in groupby(changes, lambda c: c.path):
                     self.__apply_changes_callback(list(map(lambda g: g.content, group)), key)
                 try:
-                    if not porcelain.add(dir_name, paths=[dir_name])[0]:
-                        raise Error(f'Registered changes have not made any actual change for {link}')
-                    porcelain.commit(dir_name, self.__commit_message)
-                    porcelain.push(dir_name, errstream=NoneStream())
-                    rev = GitSource.__get_commit(dir_name)
-                    changes = []
-                    logger.info(f'After push {link} is at revision {rev}')
+                    if porcelain.add(dir_name, paths=[dir_name])[1]:
+                        porcelain.commit(dir_name, self.__commit_message)
+                        porcelain.push(dir_name, errstream=NoneStream())
+                        rev = GitSource.__get_commit(dir_name)
+                        changes = []
+                        logger.info(f'After push {link} is at revision {rev}')
+                    elif changes:
+                        logger.warning(f'Registered changes have not made any actual change for {link}')
                 except Error:
                     logger.warning(f'Could not push changes for {link}, will retry later', exc_info=True)
                 return _CachedFiles(rev, lock, {}, changes)
