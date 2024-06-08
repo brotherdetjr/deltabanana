@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import timedelta, datetime
 from random import shuffle
 from typing import List, Tuple, Any
+import telegram.ext.filters as filters
 
 import yaml
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
@@ -201,6 +202,7 @@ class Main:
             CommandHandler('reverse', self.reverse_command),
             CommandHandler('nudge', self.nudge_command),
             CommandHandler('info', self.info_command),
+            MessageHandler(filters.TEXT & (~ filters.COMMAND), self.non_command_text),
             CallbackQueryHandler(self.inline_keyboard_button_handler)
         ])
         app.add_error_handler(self.error)
@@ -343,6 +345,9 @@ class Main:
             else:
                 hours: int = round(config.nudge.active_interval_seconds / 3600)
                 await self.app.bot.send_message(state.chat_id, _('nudge_help_text').format(hours=hours))
+
+    async def non_command_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        logger.info(update.message.text)  # TODO
 
     # noinspection PyUnusedLocal
     async def interaction_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
