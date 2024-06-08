@@ -112,7 +112,7 @@ class GitSource:
                         self.__sync_skip_count < self.__no_change_sync_interval_multiplier - 1:
                     self.__sync_skip_count += 1
                     return old_files
-                changes = old_files.changes if old_files else []
+                changes: List[_Change] = old_files.changes if old_files else []
                 self.__sync_skip_count = 0
                 dir_name = link.dir_name()
                 if os.path.isdir(dir_name):
@@ -128,24 +128,27 @@ class GitSource:
                         depth=1,
                         errstream=NoneStream()
                     )
-                rev = GitSource.__get_commit(dir_name)
-                logger.info(f'Updated  {link} at revision {rev}')
-                for key, group in groupby(changes, lambda c: c.path):
-                    self.__apply_changes_callback(list(map(lambda g: g.content, group)), key)
-                try:
-                    if porcelain.add(dir_name, paths=[dir_name])[1]:
-                        porcelain.commit(dir_name, self.__commit_message)
-                        porcelain.push(dir_name, errstream=NoneStream())
-                        rev = GitSource.__get_commit(dir_name)
-                        changes = []
-                        logger.info(f'After push {link} is at revision {rev}')
-                    elif changes:
-                        logger.warning(f'Registered changes have not made any actual change for {link}')
-                except Error:
-                    logger.warning(f'Could not push changes for {link}, will retry later', exc_info=True)
-                return _CachedFiles(rev, lock, {}, changes)
+                logger.info(f'Updated  {link} at revision {GitSource.__get_rev(dir_name)}')
+                self.__add_commit_push(link, changes)
+                return _CachedFiles(GitSource.__get_rev(dir_name), lock, {}, changes)
         except BaseException:
             logger.error(f'Failed syncing repo {link}', exc_info=True)
+
+    def __add_commit_push(self, link: _GitRepoLink, changes: List[_Change]) -> None:
+        dir_name = link.dir_name()
+        for key, group in groupby(changes, lambda c: c.path):
+            self.__apply_changes_callback(list(map(lambda g: g.content, group)), key)
+        try:
+            if porcelain.add(dir_name, paths=[dir_name])[1]:
+                porcelain.commit(dir_name, self.__commit_message)
+                porcelain.push(dir_name, errstream=NoneStream())
+                rev = GitSource.__get_rev(dir_name)
+                changes.clear()
+                logger.info(f'After push {link} is at revision {rev}')
+            elif changes:
+                logger.warning(f'Registered changes have not made any actual change for {link}')
+        except Error:
+            logger.warning(f'Could not push changes for {link}, will retry later', exc_info=True)
 
     def __on_refresh(self, link: _GitRepoLink, old_files: _CachedFiles | None, new_files: _CachedFiles) -> bool:
         if old_files and (old_files.rev == new_files.rev):
@@ -154,7 +157,7 @@ class GitSource:
         return True
 
     @staticmethod
-    def __get_commit(repo_path: str) -> str:
+    def __get_rev(repo_path: str) -> str:
         git_folder = Path(repo_path, '.git')
         head_name = Path(git_folder, 'HEAD').read_text().split('\n')[0].split(' ')[-1]
         head_ref = Path(git_folder, head_name)
