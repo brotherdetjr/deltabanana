@@ -116,6 +116,7 @@ class GitSource:
                 self.__sync_skip_count = 0
                 dir_name = link.dir_name()
                 if os.path.isdir(dir_name):
+                    porcelain.clean(dir_name, dir_name)
                     porcelain.reset(dir_name, 'hard')
                     logger.info(f'Pulling {link} at path {dir_name} ...')
                     porcelain.pull(dir_name, errstream=NoneStream())
