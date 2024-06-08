@@ -2,6 +2,7 @@ locale: ru
 collection_sync:
   interval_seconds: 60
   no_change_multiplier: 10
+  commit_message: Commit by deltabanana bot
 bot_poll_interval_seconds: 2
 active_user_sessions:
   max_count: 1000

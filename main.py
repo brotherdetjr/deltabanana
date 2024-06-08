@@ -43,7 +43,7 @@ class Collection:
         for idx, c in enumerate(config['collections']):
             if to_git_file_link(c) == self.link:
                 return config['collections'][idx]['title']
-        raise IndexError
+        raise IndexError()
 
     @property
     def decorated_title(self) -> str:
@@ -206,7 +206,8 @@ class Main:
             refresh_callback=self.on_refresh,
             apply_changes_callback=lambda a, b: None,  # TODO
             sync_interval_seconds=config.get('collection_sync', {}).get('interval_seconds', 60),
-            no_change_sync_interval_multiplier=config.get('collection_sync', {}).get('no_change_multiplier', 10)
+            no_change_sync_interval_multiplier=config.get('collection_sync', {}).get('no_change_multiplier', 10),
+            commit_message=config.get('collection_sync', {}).get('commit_message', 'Commit by deltabanana bot')
         )
         self.app = app
         app.job_queue.run_repeating(
@@ -234,8 +235,8 @@ class Main:
                 data = json.dumps({'type': 'collection_idx', 'value': idx})
                 button_markup = [InlineKeyboardButton(self.get_collection(idx).decorated_title, callback_data=data)]
                 collections_keyboard.append(button_markup)
-            except FileNotFoundError as e:
-                logger.error('Failed to load collection #%s from config file', idx, exc_info=e)
+            except FileNotFoundError:
+                logger.error(f'Failed to load collection #{idx} from config file', exc_info=True)
         reply_markup = InlineKeyboardMarkup(collections_keyboard)
         await asyncio.gather(
             self.remove_chat_buttons(update.effective_chat.id),
@@ -350,7 +351,7 @@ class Main:
         if isinstance(context.error, CapacityException):
             await update.message.reply_text(_('bot_busy'))
         else:
-            logger.error('Update %s caused an error', update, exc_info=context.error)
+            logger.error(f'Update {update} caused an error {context.error}', exc_info=True)
 
     async def show_next_command(self, state: UserState, stick_to_questions: bool = False):
         chat_id: int = state.chat_id
@@ -404,8 +405,8 @@ class Main:
                     ),
                     0
                 )
-            except FileNotFoundError as e:
-                logger.error('Failed to refresh collection %s', link, exc_info=e)
+            except FileNotFoundError:
+                logger.error(f'Failed to refresh collection {link}', exc_info=True)
 
     async def remove_chat_buttons(self, chat_id: int, msg_text: str = '👻'):
         msg = await self.app.bot.send_message(chat_id, msg_text, reply_markup=ReplyKeyboardRemove())
