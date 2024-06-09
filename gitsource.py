@@ -130,7 +130,8 @@ class GitSource:
                         errstream=NoneStream()
                     )
                 logger.info(f'Updated  {link} at revision {GitSource.__get_rev(dir_name)}')
-                self.__add_commit_push(link, changes)
+                if changes:
+                    self.__add_commit_push(link, changes)
                 return _CachedFiles(GitSource.__get_rev(dir_name), lock, {}, changes)
         except BaseException:
             logger.error(f'Failed syncing repo {link}', exc_info=True)
@@ -140,16 +141,19 @@ class GitSource:
         for key, group in groupby(changes, lambda c: c.link):
             self.__apply_changes_callback(list(map(lambda g: g.content, group)), key)
         try:
-            if porcelain.add(dir_name, paths=[dir_name])[1]:
-                porcelain.commit(dir_name, self.__commit_message)
-                porcelain.push(dir_name, errstream=NoneStream())
-                rev = GitSource.__get_rev(dir_name)
+            if porcelain.add()[1]:
+                os.chdir(dir_name)
+                porcelain.commit(message=self.__commit_message)
+                porcelain.push('.')
+                rev = GitSource.__get_rev('.')
                 logger.info(f'After push {link} is at revision {rev}')
             elif changes:
                 logger.warning(f'Registered changes have not made any actual change for {link}')
             changes.clear()
         except Error:
             logger.warning(f'Could not push changes for {link}, will retry later', exc_info=True)
+        finally:
+            os.chdir('..')
 
     def __on_refresh(self, link: _GitRepoLink, old_files: _CachedFiles | None, new_files: _CachedFiles) -> bool:
         if old_files and (old_files.rev == new_files.rev):
