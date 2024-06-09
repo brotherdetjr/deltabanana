@@ -311,11 +311,7 @@ class Main:
 
 
 if __name__ == '__main__':
-    gettext.translation(
-        'deltabanana',
-        './locales',
-        fallback=False,
-        languages=[config.locale]
-    ).install(['gettext', 'ngettext'])
+    gettext.translation('deltabanana', './locales', fallback=False, languages=[config.locale])\
+        .install(['gettext', 'ngettext'])
     logger.info('Starting bot...')
     Main(os.getenv('DELTABANANA_TOKEN'))
