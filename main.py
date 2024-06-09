@@ -208,7 +208,7 @@ class Main:
             return
         lines = update.message.text.splitlines()
         if 1 < len(lines) < 4:
-            self.add_entry(state, *lines)
+            self.git_source.register_change(state.collection.link, Entry(*lines, author=update.effective_user.username))
             await update.message.reply_text(_('entry_added'), reply_markup=NEXT_BUTTON)
         else:
             await update.message.reply_text(_('how_to_add_entry'), parse_mode='html', reply_markup=NEXT_BUTTON)
@@ -254,7 +254,7 @@ class Main:
         content: list[Entry] = []
         with open(path.joinpath('entries.csv'), encoding='utf-8') as csv_file:
             for row in csv.reader(csv_file, delimiter=';'):
-                content.append(Entry(row))
+                content.append(Entry(*row))
         with open(path.joinpath('description.yaml'), encoding='UTF-8') as yaml_file:
             descr: dict = yaml.safe_load(yaml_file)
             return Collection(tuple(content), descr['nativeLang'], descr['studiedLang'], descr['topic'], link)
@@ -287,9 +287,6 @@ class Main:
     @staticmethod
     def nudge_req(value: str) -> str:
         return json.dumps({'type': 'nudge_request', 'value': value})
-
-    def add_entry(self, state: UserState, studied: str, native: str, pronunciation: str = None) -> None:
-        self.git_source.register_change(state.collection.link, (studied, native, pronunciation))
 
     @staticmethod
     def append_entries_to_file(entries: list[Entry], link: GitFileLink) -> None:

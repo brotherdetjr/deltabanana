@@ -1,5 +1,6 @@
 import datetime
-from dataclasses import dataclass
+import functools
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from random import shuffle
 from typing import Any
@@ -10,7 +11,22 @@ from cfg import config
 from gitsource import GitFileLink
 from timeinterval import TimeInterval
 
-Entry = tuple[str, str, str | None]
+
+@dataclass(frozen=True)
+class Entry:
+    studied: str
+    native: str
+    pronunciation: str | None = field(default=None)
+    author: str | None = field(default=None)
+
+    @functools.cache
+    def __getitem__(self, idx: int) -> str | None:
+        value = (self.studied, self.native, self.pronunciation)[idx] if 0 <= idx < 3 else None
+        return value.strip() if value else None
+
+    @functools.cache
+    def __iter__(self) -> iter:
+        return iter((self.studied, self.native, self.pronunciation, self.author))
 
 
 @dataclass(frozen=True)
@@ -88,9 +104,7 @@ class UserState:
 
     @property
     def current_word(self) -> str | None:
-        entry: Entry = self.__mutable_entries[self.__entry_idx]
-        idx: int = self.__tuple_idx_with_mode_applied
-        return entry[idx].strip() if idx < len(entry) else None
+        return self.__mutable_entries[self.__entry_idx][self.__tuple_idx_with_mode_applied]
 
     @property
     def reverse_mode(self) -> bool:
@@ -124,7 +138,7 @@ class UserState:
     def decorated_word(self) -> str:
         c = self.collection
         native_studied_pronunciation_icon = [c.studied_lang, c.native_lang, '👂'][self.__tuple_idx_with_mode_applied]
-        question_answer_icon = ['❓', '❗', ''][self.__tuple_idx]
+        question_answer_icon = '❓' if self.__tuple_idx == 0 else ''
         return f'{native_studied_pronunciation_icon} {self.current_word} {question_answer_icon}'
 
     @property
