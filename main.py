@@ -24,12 +24,17 @@ from caches import LimitedTtlCache, CapacityException
 from gitsource import GitSource, GitFileLink
 from timeinterval import TimeInterval
 
+from typing import Final
+
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger(__name__)
 
 
 def to_git_file_link(c: cfg.Collection):
     return GitFileLink(c.url, c.branch, c.path)
+
+
+NEXT_BUTTON: Final[ReplyKeyboardMarkup] = ReplyKeyboardMarkup([[KeyboardButton('/next')]], resize_keyboard=True)
 
 
 @dataclass(frozen=True)
@@ -179,6 +184,9 @@ class UserState:
             except BadRequest:
                 pass
 
+    def add_entry(self, studied: str, native: str, pronunciation: str = None) -> None:
+        logger.info((studied, native, pronunciation))
+
 
 class Main:
     user_states: LimitedTtlCache[str, UserState]
@@ -319,10 +327,7 @@ class Main:
                 update.effective_message.reply_text(
                     _('selected_collection').format(title=collection.decorated_title, topic=collection.topic),
                     parse_mode='html',
-                    reply_markup=ReplyKeyboardMarkup(
-                        [[KeyboardButton('/next')]],
-                        resize_keyboard=True
-                    )
+                    reply_markup=NEXT_BUTTON
                 )
             )
             await self.show_next_command(state)
@@ -347,7 +352,16 @@ class Main:
                 await self.app.bot.send_message(state.chat_id, _('nudge_help_text').format(hours=hours))
 
     async def non_command_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        logger.info(update.message.text)  # TODO
+        state: UserState = self.user_state(update)
+        if not state.collection:
+            await update.message.reply_text(_('select_collection'))
+            return
+        lines = update.message.text.splitlines()
+        if len(lines) >= 2:
+            state.add_entry(*lines)
+            await update.message.reply_text(_('entry_added'), reply_markup=NEXT_BUTTON)
+        else:
+            await update.message.reply_text(_('how_to_add_entry'), reply_markup=NEXT_BUTTON)
 
     # noinspection PyUnusedLocal
     async def interaction_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

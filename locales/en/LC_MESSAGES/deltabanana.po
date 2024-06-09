@@ -64,3 +64,12 @@ Therefore, by clicking \"Set,\" you mark the start of a {hour}-hour interval \
 during which you will be receiving reminders occasionally - words from the selected collection. \
 Reminders will be sent at the specified time on subsequent days as well. \
 To stop receiving reminders, click \"Reset.\""
+
+msgid "entry_added"
+msgstr "✍"
+
+msgid "how_to_add_entry"
+msgstr "✍ Write a message where the first line contains a word or phrase in the language you are learning, \
+the second line contains the translation in your native language, \
+and the third line (optional) contains the pronunciation.\n\
+A little later, the entry will be added to the dictionary."
