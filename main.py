@@ -98,8 +98,10 @@ class Main:
 
     # noinspection PyUnusedLocal
     async def next_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        state: UserState = self.user_state(update)
-        await self.show_next_command(state)
+        await asyncio.gather(
+            update.message.delete(),
+            self.show_next_command(self.user_state(update))
+        )
 
     # noinspection PyUnusedLocal
     async def shuffle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
