@@ -184,9 +184,6 @@ class UserState:
             except BadRequest:
                 pass
 
-    def add_entry(self, studied: str, native: str, pronunciation: str = None) -> None:
-        logger.info((studied, native, pronunciation))
-
 
 class Main:
     user_states: LimitedTtlCache[str, UserState]
@@ -351,6 +348,7 @@ class Main:
                 hours: int = round(config.nudge.active_interval_seconds / 3600)
                 await self.app.bot.send_message(state.chat_id, _('nudge_help_text').format(hours=hours))
 
+    # noinspection PyUnusedLocal
     async def non_command_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: UserState = self.user_state(update)
         if not state.collection:
@@ -358,7 +356,7 @@ class Main:
             return
         lines = update.message.text.splitlines()
         if len(lines) >= 2:
-            state.add_entry(*lines)
+            self.add_entry(state, *lines)
             await update.message.reply_text(_('entry_added'), reply_markup=NEXT_BUTTON)
         else:
             await update.message.reply_text(_('how_to_add_entry'), reply_markup=NEXT_BUTTON)
@@ -436,6 +434,9 @@ class Main:
     @staticmethod
     def nudge_req(value: str) -> str:
         return json.dumps({'type': 'nudge_request', 'value': value})
+
+    def add_entry(self, state: UserState, studied: str, native: str, pronunciation: str = None) -> None:
+        self.git_source.register_change(state.collection.link, (studied, native, pronunciation))
 
 
 if __name__ == '__main__':
