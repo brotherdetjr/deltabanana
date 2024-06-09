@@ -141,14 +141,13 @@ class GitSource:
         for key, group in groupby(changes, lambda c: c.link):
             self.__apply_changes_callback(list(map(lambda g: g.content, group)), key)
         try:
-            os.chdir(dir_name)
-            repo = porcelain.open_repo(os.getcwd())
+            repo = porcelain.open_repo(os.getcwd() + '/' + dir_name)
             status = porcelain.status(repo)
             to_stage = status.unstaged + status.untracked
             if to_stage:
                 repo.stage(to_stage)
-                porcelain.commit(message=self.__commit_message)
-                porcelain.push('.', errstream=NoneStream())
+                porcelain.commit(repo, message=self.__commit_message)
+                porcelain.push(repo, errstream=NoneStream())
                 rev = GitSource.__get_rev('.')
                 logger.info(f'After push {link} is at revision {rev}')
             elif changes:
@@ -156,8 +155,6 @@ class GitSource:
             changes.clear()
         except Error:
             logger.warning(f'Could not push changes for {link}, will retry later', exc_info=True)
-        finally:
-            os.chdir('..')
 
     def __on_refresh(self, link: _GitRepoLink, old_files: _CachedFiles | None, new_files: _CachedFiles) -> bool:
         if old_files and (old_files.rev == new_files.rev):
