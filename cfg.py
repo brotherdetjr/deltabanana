@@ -2,6 +2,8 @@ import yaml
 from dacite import from_dict
 from dataclasses import dataclass, field
 
+from gitsource import GitFileLink
+
 
 @dataclass(frozen=True)
 class CollectionSync:
@@ -30,6 +32,10 @@ class Collection:
     path: str
     branch: str = field(default='main')
 
+    @property
+    def as_git_file_link(self):
+        return GitFileLink(self.url, self.branch, self.path)
+
 
 @dataclass(frozen=True)
 class Config:
@@ -43,3 +49,7 @@ class Config:
 
 def load(file) -> Config:
     return from_dict(Config, yaml.safe_load(file))
+
+
+with open('deltabanana.yaml', encoding='UTF-8') as config_file:
+    config: Config = load(config_file)
