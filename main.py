@@ -112,8 +112,10 @@ class UserState:
         return len(self.__mutable_entries) > 0
 
     @property
-    def current_word(self) -> str:
-        return self.__mutable_entries[self.__entry_idx][self.__tuple_idx_with_mode_applied]
+    def current_word(self) -> str | None:
+        entry: Entry = self.__mutable_entries[self.__entry_idx]
+        idx: int = self.__tuple_idx_with_mode_applied
+        return entry[idx].strip() if idx < len(entry) else None
 
     @property
     def reverse_mode(self) -> bool:
@@ -132,10 +134,8 @@ class UserState:
                 self.__entry_idx = 0
 
     def roll(self, stick_to_question: bool) -> None:
-        text: str = self.current_word.strip()
-        while not text or stick_to_question and self.__tuple_idx_with_mode_applied > 0:
+        while not self.current_word or stick_to_question and self.__tuple_idx_with_mode_applied > 0:
             self.go_next_word()
-            text = self.current_word.strip()
 
     def reset_collection(self) -> None:
         self.__entry_idx = 0
@@ -150,7 +150,7 @@ class UserState:
         c = self.collection
         native_studied_pronunciation_icon = [c.studied_lang, c.native_lang, '👂'][self.__tuple_idx_with_mode_applied]
         question_answer_icon = ['❓', '❗', ''][self.__tuple_idx]
-        return f'{native_studied_pronunciation_icon} {self.current_word.strip()} {question_answer_icon}'
+        return f'{native_studied_pronunciation_icon} {self.current_word} {question_answer_icon}'
 
     @property
     def idling(self) -> bool:
