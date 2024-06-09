@@ -1,6 +1,8 @@
+import os
+from dataclasses import dataclass, field
+
 import yaml
 from dacite import from_dict
-from dataclasses import dataclass, field
 
 from gitsource import GitFileLink
 
@@ -39,6 +41,7 @@ class Collection:
 
 @dataclass(frozen=True)
 class Config:
+    bot_token: str = field(default=os.getenv('DELTABANANA_TOKEN'))
     locale: str = field(default='en')
     collection_sync: CollectionSync = field(default_factory=CollectionSync)
     bot_poll_interval_seconds: int = field(default=2)

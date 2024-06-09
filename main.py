@@ -3,7 +3,6 @@ import csv
 import gettext
 import json
 import logging.config
-import os.path
 import pathlib
 from datetime import timedelta
 from typing import Any
@@ -33,12 +32,12 @@ class Main:
     git_source: GitSource
     app: Application
 
-    def __init__(self, bot_token: str):
+    def __init__(self):
         self.user_states = LimitedTtlCache(
             maxsize=config.active_user_sessions.max_count,
             ttl=config.active_user_sessions.inactivity_timeout_seconds
         )
-        app = Application.builder().token(bot_token).job_queue(JobQueue()).build()
+        app = Application.builder().token(config.bot_token).job_queue(JobQueue()).build()
         app.add_handlers([
             MessageHandler(None, self.interaction_callback),
             CallbackQueryHandler(self.interaction_callback)
@@ -303,4 +302,4 @@ if __name__ == '__main__':
     gettext.translation('deltabanana', './locales', fallback=False, languages=[config.locale])\
         .install(['gettext', 'ngettext'])
     logger.info('Starting bot...')
-    Main(os.getenv('DELTABANANA_TOKEN'))
+    Main()
