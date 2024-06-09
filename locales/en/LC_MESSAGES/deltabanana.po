@@ -71,5 +71,10 @@ msgstr "✍"
 msgid "how_to_add_entry"
 msgstr "✍ Write a message where the first line contains a word or phrase in the language you are learning, \
 the second line contains the translation in your native language, \
-and the third line (optional) contains the pronunciation.\n\
+and the third line (optional) contains the pronunciation.\n\n\
+<pre>\
+ananas\n\
+pineapple\n\
+ana'nas\n\
+</pre>\n\
 A little later, the entry will be added to the dictionary."

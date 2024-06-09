@@ -205,6 +205,7 @@ class Main:
             CommandHandler('next', self.next_command),
             CommandHandler('shuffle', self.shuffle_command),
             CommandHandler('reverse', self.reverse_command),
+            CommandHandler('add', self.add_command),
             CommandHandler('nudge', self.nudge_command),
             CommandHandler('info', self.info_command),
             MessageHandler(filters.TEXT & (~ filters.COMMAND), self.non_command_text),
@@ -275,6 +276,14 @@ class Main:
         state.toggle_reverse_mode()
         lang: str = state.collection.native_lang if state.reverse_mode else state.collection.studied_lang
         await update.message.reply_text(_('reverse_mode_toggle').format(lang=lang))
+
+    # noinspection PyUnusedLocal
+    async def add_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        state: UserState = self.user_state(update)
+        if not state.collection:
+            await update.message.reply_text(_('select_collection'))
+            return
+        await update.message.reply_text(_('how_to_add_entry'), parse_mode='html', reply_markup=NEXT_BUTTON)
 
     # noinspection PyUnusedLocal
     async def nudge_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -359,7 +368,7 @@ class Main:
             self.add_entry(state, *lines)
             await update.message.reply_text(_('entry_added'), reply_markup=NEXT_BUTTON)
         else:
-            await update.message.reply_text(_('how_to_add_entry'), reply_markup=NEXT_BUTTON)
+            await update.message.reply_text(_('how_to_add_entry'), parse_mode='html', reply_markup=NEXT_BUTTON)
 
     # noinspection PyUnusedLocal
     async def interaction_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
