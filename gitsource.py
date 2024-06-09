@@ -31,7 +31,7 @@ class GitFileLink(_GitRepoLink):
 
 @dataclass(frozen=True)
 class _Change:
-    path: str
+    link: GitFileLink
     content: Any
 
 
@@ -49,7 +49,7 @@ T = TypeVar("T")
 class GitSource:
     __link_cache: RefreshCache[_GitRepoLink, _CachedFiles]
     __refresh_callback: Callable[[str, str], None]
-    __apply_changes_callback: Callable[[List[Any], str], None]
+    __apply_changes_callback: Callable[[List[Any], GitFileLink], None]
     __no_change_sync_interval_multiplier: int
     __commit_message: str | None
     __sync_skip_count: int
@@ -57,7 +57,7 @@ class GitSource:
     def __init__(
             self,
             refresh_callback: Callable[[str, str], None],
-            apply_changes_callback: Callable[[List[Any], str], None],
+            apply_changes_callback: Callable[[List[Any], GitFileLink], None],
             sync_interval_seconds: int = 60,
             no_change_sync_interval_multiplier: int = 10,
             commit_message: str | None = None,
@@ -77,7 +77,7 @@ class GitSource:
         return self.__locked(link, lambda f: GitSource.__get(link, f.content, map_func))
 
     def register_change(self, link: GitFileLink, change_content: Any) -> None:
-        self.__locked(link, lambda cached_files: GitSource.__register_change(link.path, change_content, cached_files))
+        self.__locked(link, lambda cached_files: GitSource.__register_change(link, change_content, cached_files))
 
     def __locked(self, link: GitFileLink, action: Callable[[_CachedFiles], T]) -> T:
         repo_link = _GitRepoLink(link.url, link.branch)
@@ -88,10 +88,10 @@ class GitSource:
             return action(self.__link_cache.get(repo_link))
 
     @staticmethod
-    def __register_change(path: str, change_content: Any, cached_files: _CachedFiles) -> None:
-        if path not in cached_files.content:
+    def __register_change(link: GitFileLink, change_content: Any, cached_files: _CachedFiles) -> None:
+        if link.path not in cached_files.content:
             raise LookupError()
-        cached_files.changes.append(_Change(path, change_content))
+        cached_files.changes.append(_Change(link, change_content))
 
     @staticmethod
     def __get(link: GitFileLink, content: dict[str, T], map_func: Callable[[Path, GitFileLink], T]) -> T:
@@ -137,17 +137,17 @@ class GitSource:
 
     def __add_commit_push(self, link: _GitRepoLink, changes: List[_Change]) -> None:
         dir_name = link.dir_name()
-        for key, group in groupby(changes, lambda c: c.path):
+        for key, group in groupby(changes, lambda c: c.link):
             self.__apply_changes_callback(list(map(lambda g: g.content, group)), key)
         try:
             if porcelain.add(dir_name, paths=[dir_name])[1]:
                 porcelain.commit(dir_name, self.__commit_message)
                 porcelain.push(dir_name, errstream=NoneStream())
                 rev = GitSource.__get_rev(dir_name)
-                changes.clear()
                 logger.info(f'After push {link} is at revision {rev}')
             elif changes:
                 logger.warning(f'Registered changes have not made any actual change for {link}')
+            changes.clear()
         except Error:
             logger.warning(f'Could not push changes for {link}, will retry later', exc_info=True)
 
