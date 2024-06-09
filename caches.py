@@ -43,10 +43,11 @@ class RefreshCache(Generic[_K, _V]):
     def __load_and_save(self, key: _K) -> _V:
         old_value: _V = self.__cache.get(key)
         new_value: _V = self.__load_func(key, old_value)
+        self.__cache[key] = new_value
         if self.__refresh_callback(key, old_value, new_value):
-            self.__cache[key] = new_value
             return new_value
         else:
+            self.__cache[key] = old_value
             return old_value
 
     def __get_lock(self, key: _K) -> (RLock, bool):

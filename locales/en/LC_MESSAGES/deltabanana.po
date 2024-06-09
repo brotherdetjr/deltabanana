@@ -78,7 +78,7 @@ ananas\n\
 pineapple\n\
 ana'nas\n\
 </pre>\n\
-or with no pronunciation\n\
+Or with no pronunciation:\n\
 <pre>\
 gato\n\
 cat\n\
