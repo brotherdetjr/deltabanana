@@ -3,8 +3,8 @@ msgstr ""
 "Language: en\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "collection_modified_externally"
-msgstr "ℹ Collection has been modified externally!"
+msgid "collection_updated"
+msgstr "ℹ Collection has been updated"
 
 msgid "selected_collection"
 msgstr "<b>Selected collection:</b> {title}\n{topic}"
@@ -69,12 +69,18 @@ msgid "entry_added"
 msgstr "✍"
 
 msgid "how_to_add_entry"
-msgstr "✍ Write a message where the first line contains a word or phrase in the language you are learning, \
+msgstr "Write a message where the first line contains a word or phrase in the language you are learning, \
 the second line contains the translation in your native language, \
 and the third line (optional) contains the pronunciation.\n\n\
+💡 You don't have to do /add each time. Just send new words.\n\
 <pre>\
 ananas\n\
 pineapple\n\
 ana'nas\n\
+</pre>\n\
+or with no pronunciation\n\
+<pre>\
+gato\n\
+cat\n\
 </pre>\n\
 A little later, the entry will be added to the dictionary."

@@ -365,7 +365,7 @@ class Main:
             await update.message.reply_text(_('select_collection'))
             return
         lines = update.message.text.splitlines()
-        if len(lines) >= 2:
+        if 1 < len(lines) < 4:
             self.add_entry(state, *lines)
             await update.message.reply_text(_('entry_added'), reply_markup=NEXT_BUTTON)
         else:
@@ -431,7 +431,7 @@ class Main:
                 self.app.job_queue.run_once(
                     lambda ignore: self.app.bot.send_message(
                         state.chat_id,
-                        _('collection_modified_externally')
+                        _('collection_updated')
                     ),
                     0
                 )

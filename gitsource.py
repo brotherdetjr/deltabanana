@@ -148,7 +148,7 @@ class GitSource:
             if to_stage:
                 repo.stage(to_stage)
                 porcelain.commit(message=self.__commit_message)
-                porcelain.push('.')
+                porcelain.push('.', errstream=NoneStream())
                 rev = GitSource.__get_rev('.')
                 logger.info(f'After push {link} is at revision {rev}')
             elif changes:
