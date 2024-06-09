@@ -141,8 +141,12 @@ class GitSource:
         for key, group in groupby(changes, lambda c: c.link):
             self.__apply_changes_callback(list(map(lambda g: g.content, group)), key)
         try:
-            if porcelain.add()[1]:
-                os.chdir(dir_name)
+            os.chdir(dir_name)
+            repo = porcelain.open_repo(os.getcwd())
+            status = porcelain.status(repo)
+            to_stage = status.unstaged + status.untracked
+            if to_stage:
+                repo.stage(to_stage)
                 porcelain.commit(message=self.__commit_message)
                 porcelain.push('.')
                 rev = GitSource.__get_rev('.')
