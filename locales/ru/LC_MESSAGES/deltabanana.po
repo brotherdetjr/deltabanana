@@ -12,9 +12,6 @@ msgstr "<b>Выбран словарик:</b> {title}\n{topic}"
 msgid "empty_collection"
 msgstr "🚫 Словарик пуст!"
 
-msgid "shuffled"
-msgstr "🔀"
-
 msgid "bot_busy"
 msgstr "✋ Бот слишком занят. Попробуйте позже!"
 

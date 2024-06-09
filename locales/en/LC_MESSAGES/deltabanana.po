@@ -12,9 +12,6 @@ msgstr "<b>Selected collection:</b> {title}\n{topic}"
 msgid "empty_collection"
 msgstr "🚫 No entries in collection!"
 
-msgid "shuffled"
-msgstr "🔀"
-
 msgid "bot_busy"
 msgstr "✋ The bot is too busy now. Try again later!"
 

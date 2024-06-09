@@ -46,7 +46,6 @@ class Main:
         app.add_handlers([
             CommandHandler('start', self.start_command),
             CommandHandler('next', self.next_command),
-            CommandHandler('shuffle', self.shuffle_command),
             CommandHandler('reverse', self.reverse_command),
             CommandHandler('add', self.add_command),
             CommandHandler('nudge', self.nudge_command),
@@ -102,15 +101,6 @@ class Main:
             update.message.delete(),
             self.show_next_command(self.user_state(update))
         )
-
-    # noinspection PyUnusedLocal
-    async def shuffle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        state: UserState = self.user_state(update)
-        if not state.collection:
-            await update.message.reply_text(_('select_collection'))
-            return
-        state.shuffle_entries()
-        await update.message.reply_text(_('shuffled'))
 
     # noinspection PyUnusedLocal
     async def reverse_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
