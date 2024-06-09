@@ -1,5 +1,3 @@
-from typing import List
-
 import yaml
 from dacite import from_dict
 from dataclasses import dataclass, field
@@ -40,7 +38,7 @@ class Config:
     bot_poll_interval_seconds: int = field(default=2)
     active_user_sessions: ActiveUserSessions = field(default_factory=ActiveUserSessions)
     nudge: Nudge = field(default_factory=Nudge)
-    collections: List[Collection] = field(default_factory=list)
+    collections: list[Collection] = field(default_factory=list)
 
 
 def load(file) -> Config:

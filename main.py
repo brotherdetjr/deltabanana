@@ -9,7 +9,7 @@ import pathlib
 from dataclasses import dataclass
 from datetime import timedelta, datetime
 from random import shuffle
-from typing import List, Tuple, Any
+from typing import Any
 import telegram.ext.filters as filters
 
 import yaml
@@ -39,7 +39,7 @@ NEXT_BUTTON: Final[ReplyKeyboardMarkup] = ReplyKeyboardMarkup([[KeyboardButton('
 
 @dataclass(frozen=True)
 class Collection:
-    entries: Tuple[Tuple[str]]
+    entries: tuple[tuple[str]]
     native_lang: str
     studied_lang: str
     topic: str
@@ -59,7 +59,7 @@ class Collection:
 
 class UserState:
     __collection: Collection | None
-    __mutable_entries: List[Tuple[str]]
+    __mutable_entries: list[tuple[str]]
     __entry_idx: int
     __tuple_idx: int
     __chat_id: int
@@ -239,7 +239,7 @@ class Main:
     # noinspection PyUnusedLocal
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.user_state(update).reset()
-        collections_keyboard: List[List[InlineKeyboardButton]] = []
+        collections_keyboard: list[list[InlineKeyboardButton]] = []
         for idx, ignore in enumerate(config.collections):
             try:
                 data = json.dumps({'type': 'collection_idx', 'value': idx})
@@ -447,7 +447,7 @@ class Main:
     def add_entry(self, state: UserState, studied: str, native: str, pronunciation: str = None) -> None:
         self.git_source.register_change(state.collection.link, (studied, native, pronunciation))
 
-    def append_entries_to_file(self, entries: List[Any], link: GitFileLink) -> None:
+    def append_entries_to_file(self, entries: list[tuple[str]], link: GitFileLink) -> None:
         # TODO
         logger.info(f'appending {entries} to {link.dir_name()}/{link.path}/entries.csv')
 

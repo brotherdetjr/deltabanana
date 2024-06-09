@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from itertools import groupby
 from pathlib import Path
 from threading import RLock
-from typing import Any, Callable, TypeVar, List
+from typing import Any, Callable, TypeVar
 
 from dulwich import porcelain
 from dulwich.porcelain import NoneStream, Error
@@ -40,7 +40,7 @@ class _CachedFiles:
     rev: str
     lock: RLock
     content: dict[str, Any]
-    changes: List[_Change]
+    changes: list[_Change]
 
 
 T = TypeVar("T")
@@ -49,7 +49,7 @@ T = TypeVar("T")
 class GitSource:
     __link_cache: RefreshCache[_GitRepoLink, _CachedFiles]
     __refresh_callback: Callable[[str, str], None]
-    __apply_changes_callback: Callable[[List[Any], GitFileLink], None]
+    __apply_changes_callback: Callable[[list[Any], GitFileLink], None]
     __no_change_sync_interval_multiplier: int
     __commit_message: str | None
     __sync_skip_count: int
@@ -57,7 +57,7 @@ class GitSource:
     def __init__(
             self,
             refresh_callback: Callable[[str, str], None],
-            apply_changes_callback: Callable[[List[Any], GitFileLink], None],
+            apply_changes_callback: Callable[[list[Any], GitFileLink], None],
             sync_interval_seconds: int = 60,
             no_change_sync_interval_multiplier: int = 10,
             commit_message: str | None = None,
@@ -112,7 +112,7 @@ class GitSource:
                         self.__sync_skip_count < self.__no_change_sync_interval_multiplier - 1:
                     self.__sync_skip_count += 1
                     return old_files
-                changes: List[_Change] = old_files.changes if old_files else []
+                changes: list[_Change] = old_files.changes if old_files else []
                 self.__sync_skip_count = 0
                 dir_name = link.dir_name()
                 if os.path.isdir(dir_name):
@@ -135,7 +135,7 @@ class GitSource:
         except BaseException:
             logger.error(f'Failed syncing repo {link}', exc_info=True)
 
-    def __add_commit_push(self, link: _GitRepoLink, changes: List[_Change]) -> None:
+    def __add_commit_push(self, link: _GitRepoLink, changes: list[_Change]) -> None:
         dir_name = link.dir_name()
         for key, group in groupby(changes, lambda c: c.link):
             self.__apply_changes_callback(list(map(lambda g: g.content, group)), key)
