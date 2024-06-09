@@ -215,7 +215,7 @@ class Main:
         app.add_error_handler(self.error)
         self.git_source = GitSource(
             refresh_callback=self.on_refresh,
-            apply_changes_callback=self.append_entries_to_file,
+            apply_changes_callback=Main.append_entries_to_file,
             sync_interval_seconds=config.collection_sync.interval_seconds,
             no_change_sync_interval_multiplier=config.collection_sync.no_change_multiplier,
             commit_message=config.collection_sync.commit_message
@@ -449,9 +449,23 @@ class Main:
     def add_entry(self, state: UserState, studied: str, native: str, pronunciation: str = None) -> None:
         self.git_source.register_change(state.collection.link, (studied, native, pronunciation))
 
-    def append_entries_to_file(self, entries: list[tuple[str, str, str]], link: GitFileLink) -> None:
-        # TODO
-        logger.info(f'appending {entries} to {link.dir_name()}/{link.path}/entries.csv')
+    @staticmethod
+    def append_entries_to_file(entries: list[Entry], link: GitFileLink) -> None:
+        path = f'{link.dir_name()}/{link.path}/entries.csv'
+        logger.info(f'Appending {entries} to {path}')
+        with open(path, 'a', encoding='utf-8') as file:
+            if Main.need_to_add_new_line(path):
+                file.write('\n')
+            csv.writer(file, delimiter=';', lineterminator='\n').writerows(entries)
+
+    @staticmethod
+    def need_to_add_new_line(path: str) -> bool:
+        with open(path, 'r') as file:
+            file.seek(0, 2)
+            if file.tell() == 0:
+                return False
+            file.seek(file.tell() - 1)
+            return file.read(1) != '\n'
 
 
 if __name__ == '__main__':
