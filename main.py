@@ -10,8 +10,9 @@ from dataclasses import dataclass
 from datetime import timedelta, datetime
 from random import shuffle
 from typing import Any
-import telegram.ext.filters as filters
+from typing import Final
 
+import telegram.ext.filters as filters
 import yaml
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, \
     ReplyKeyboardRemove
@@ -24,8 +25,6 @@ from caches import LimitedTtlCache, CapacityException
 from gitsource import GitSource, GitFileLink
 from timeinterval import TimeInterval
 
-from typing import Final
-
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger(__name__)
 
@@ -36,10 +35,12 @@ def to_git_file_link(c: cfg.Collection):
 
 NEXT_BUTTON: Final[ReplyKeyboardMarkup] = ReplyKeyboardMarkup([[KeyboardButton('/next')]], resize_keyboard=True)
 
+Entry = tuple[str, str, str | None]
+
 
 @dataclass(frozen=True)
 class Collection:
-    entries: tuple[tuple[str]]
+    entries: tuple[Entry]
     native_lang: str
     studied_lang: str
     topic: str
@@ -59,7 +60,7 @@ class Collection:
 
 class UserState:
     __collection: Collection | None
-    __mutable_entries: list[tuple[str]]
+    __mutable_entries: list[Entry]
     __entry_idx: int
     __tuple_idx: int
     __chat_id: int
@@ -405,12 +406,13 @@ class Main:
     def get_collection(self, idx) -> Collection:
         return self.git_source.get(to_git_file_link(config.collections[idx]), Main.parse_collection)
 
+    # noinspection PyTypeChecker
     @staticmethod
     def parse_collection(path: pathlib.Path, link: GitFileLink) -> Collection:
-        content = []
+        content: list[Entry] = []
         with open(path.joinpath('entries.csv'), encoding='utf-8') as csv_file:
             for row in csv.reader(csv_file, delimiter=';'):
-                content.append(tuple(row))
+                content.append(Entry(row))
         with open(path.joinpath('description.yaml'), encoding='UTF-8') as yaml_file:
             descr: dict = yaml.safe_load(yaml_file)
             return Collection(tuple(content), descr['nativeLang'], descr['studiedLang'], descr['topic'], link)
@@ -447,7 +449,7 @@ class Main:
     def add_entry(self, state: UserState, studied: str, native: str, pronunciation: str = None) -> None:
         self.git_source.register_change(state.collection.link, (studied, native, pronunciation))
 
-    def append_entries_to_file(self, entries: list[tuple[str]], link: GitFileLink) -> None:
+    def append_entries_to_file(self, entries: list[tuple[str, str, str]], link: GitFileLink) -> None:
         # TODO
         logger.info(f'appending {entries} to {link.dir_name()}/{link.path}/entries.csv')
 
