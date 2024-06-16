@@ -36,13 +36,7 @@ class Collection:
     studied_lang: str
     topic: str
     link: GitFileLink
-
-    @property
-    def title(self) -> str:
-        for idx, c in enumerate(config.collections):
-            if c.as_git_file_link == self.link:
-                return c.title
-        raise IndexError()
+    title: str
 
     @property
     def decorated_title(self) -> str:

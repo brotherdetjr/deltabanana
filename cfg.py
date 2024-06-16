@@ -1,10 +1,13 @@
 import os
 from dataclasses import dataclass, field
+from typing import TypeVar
 
 import yaml
 from dacite import from_dict
 
 from gitsource import GitFileLink
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -28,31 +31,25 @@ class Nudge:
 
 
 @dataclass(frozen=True)
-class Collection:
-    title: str
-    url: str
-    path: str
-    branch: str = field(default='main')
-
-    @property
-    def as_git_file_link(self):
-        return GitFileLink(self.url, self.branch, self.path)
-
-
-@dataclass(frozen=True)
 class Config:
+    persisted_config_link: GitFileLink
     bot_token: str = field(default=os.getenv('DELTABANANA_TOKEN'))
     locale: str = field(default='en')
     collection_sync: CollectionSync = field(default_factory=CollectionSync)
     bot_poll_interval_seconds: int = field(default=2)
     active_user_sessions: ActiveUserSessions = field(default_factory=ActiveUserSessions)
     nudge: Nudge = field(default_factory=Nudge)
-    collections: list[Collection] = field(default_factory=list)
 
 
-def load(file) -> Config:
-    return from_dict(Config, yaml.safe_load(file))
+# noinspection PyDataclass
+@dataclass(frozen=True, kw_only=True)
+class CollectionDescriptor(GitFileLink):
+    title: str
+
+
+def load(file, data_class: type[T]) -> T:
+    return from_dict(data_class, yaml.safe_load(file))
 
 
 with open('deltabanana.yaml', encoding='UTF-8') as config_file:
-    config: Config = load(config_file)
+    config: Config = load(config_file, Config)

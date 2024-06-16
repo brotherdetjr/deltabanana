@@ -4,6 +4,7 @@ import gettext
 import json
 import logging.config
 import pathlib
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 from typing import Final
@@ -15,16 +16,20 @@ from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboard
 from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue, CallbackQueryHandler, CallbackContext, \
     MessageHandler
 
-from cfg import config
 from caches import LimitedTtlCache, CapacityException
+from cfg import config, CollectionDescriptor
 from gitsource import GitSource, GitFileLink
 from state import UserState, Collection, Entry
 
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger(__name__)
 
-
 NEXT_BUTTON: Final[ReplyKeyboardMarkup] = ReplyKeyboardMarkup([[KeyboardButton('/next')]], resize_keyboard=True)
+
+
+@dataclass(frozen=True)
+class PersistedConfig:
+    collections: list[CollectionDescriptor]
 
 
 class Main:
@@ -81,7 +86,7 @@ class Main:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.user_state(update).reset()
         collections_keyboard: list[list[InlineKeyboardButton]] = []
-        for idx, ignore in enumerate(config.collections):
+        for idx, ignore in enumerate(self.persisted_config.collections):
             try:
                 data = json.dumps({'type': 'collection_idx', 'value': idx})
                 button_markup = [InlineKeyboardButton(self.get_collection(idx).decorated_title, callback_data=data)]
@@ -236,22 +241,34 @@ class Main:
             state.update_last_interaction_time()
             ctx.job_queue.run_once(lambda ignore: self.show_next_command(state, True), 0)
 
+    @property
+    def persisted_config(self) -> PersistedConfig:
+        return self.git_source.get(config.persisted_config_link, PersistedConfig)
+
     def get_collection(self, idx) -> Collection:
-        return self.git_source.get(config.collections[idx].as_git_file_link, Main.parse_collection)
+        return self.git_source.get(self.persisted_config.collections[idx], self.parse_collection)
 
     # noinspection PyTypeChecker
-    @staticmethod
-    def parse_collection(path: pathlib.Path, link: GitFileLink) -> Collection:
+    def parse_collection(self, path: pathlib.Path, link: GitFileLink) -> Collection:
         content: list[Entry] = []
         with open(path.joinpath('entries.csv'), encoding='utf-8') as csv_file:
             for row in csv.reader(csv_file, delimiter=';'):
                 content.append(Entry(*row))
         with open(path.joinpath('description.yaml'), encoding='UTF-8') as yaml_file:
             descr: dict = yaml.safe_load(yaml_file)
-            return Collection(tuple(content), descr['nativeLang'], descr['studiedLang'], descr['topic'], link)
+            title: str | None = None
+            for ignore, c in enumerate(self.persisted_config.collections):
+                if c == link:
+                    title = c.title
+            if title is None:
+                raise IndexError()
+            return Collection(tuple(content), descr['nativeLang'], descr['studiedLang'], descr['topic'], link, title)
 
     # noinspection PyUnusedLocal
     def on_refresh(self, url: str, branch: str) -> None:
+        pcl = config.persisted_config_link
+        if (url, branch) == (pcl.url, pcl.branch):
+            return
         for username in self.user_states:
             state: UserState = self.user_states.get(username)
             if not state.collection:
@@ -260,7 +277,7 @@ class Main:
             if (url, branch) != (link.url, link.branch):
                 continue
             try:
-                state.collection = self.git_source.get(link, Main.parse_collection)
+                state.collection = self.git_source.get(link, self.parse_collection)
                 self.app.job_queue.run_once(
                     lambda ignore: self.app.bot.send_message(
                         state.chat_id,
@@ -299,7 +316,7 @@ class Main:
 
 
 if __name__ == '__main__':
-    gettext.translation('deltabanana', './locales', fallback=False, languages=[config.locale])\
+    gettext.translation('deltabanana', './locales', fallback=False, languages=[config.locale]) \
         .install(['gettext', 'ngettext'])
     logger.info('Starting bot...')
     Main()

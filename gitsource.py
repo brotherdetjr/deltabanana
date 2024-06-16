@@ -1,12 +1,15 @@
 import hashlib
 import logging
 import os.path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import groupby
 from pathlib import Path
 from threading import RLock
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
+from collections.abc import Callable
 
+import yaml
+from dacite import from_dict
 from dulwich import porcelain
 from dulwich.porcelain import NoneStream, Error
 
@@ -15,16 +18,17 @@ from caches import RefreshCache
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class _GitRepoLink:
     url: str
-    branch: str
+    branch: str = field(default='main')
 
     def dir_name(self) -> str:
         return '.gitlink_' + hashlib.md5(f'{self.url}:{self.branch}'.encode('utf-8')).hexdigest()
 
 
-@dataclass(frozen=True)
+# noinspection PyDataclass
+@dataclass(frozen=True, kw_only=True)
 class GitFileLink(_GitRepoLink):
     path: str
 
@@ -73,14 +77,22 @@ class GitSource:
             sync_interval_seconds=sync_interval_seconds
         )
 
-    def get(self, link: GitFileLink, map_func: Callable[[Path, GitFileLink], T]) -> T:
-        return self.__locked(link, lambda f: GitSource.__get(link, f.content, map_func))
+    def get(self, link: GitFileLink, mapping: Callable[[Path, GitFileLink], T] | type[T]) -> T:
+        if type(mapping) is type:
+            _T: type[T] = mapping
+
+            # noinspection PyUnusedLocal
+            def __parse_as_data_class(path: Path, ignore: GitFileLink) -> _T:
+                with open(path, encoding='UTF-8') as file:
+                    return from_dict(_T, yaml.safe_load(file))
+            mapping = __parse_as_data_class
+        return self.__locked(link, lambda f: GitSource.__get(link, f.content, mapping))
 
     def register_change(self, link: GitFileLink, change_content: Any) -> None:
         self.__locked(link, lambda cached_files: GitSource.__register_change(link, change_content, cached_files))
 
     def __locked(self, link: GitFileLink, action: Callable[[_CachedFiles], T]) -> T:
-        repo_link = _GitRepoLink(link.url, link.branch)
+        repo_link = _GitRepoLink(url=link.url, branch=link.branch)
         with self.__link_cache.get(repo_link).lock:
             # Lock doesn't change when created, but self.__link_cache.get(repo_link)
             # can change between a retrieval of the lock from cache and lock acquisition itself.

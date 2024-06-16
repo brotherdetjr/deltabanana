@@ -12,11 +12,6 @@ nudge:
   job_interval_seconds: 300
   active_interval_seconds: 43200
   idling_interval_seconds: 7200
-collections:
-  - title: Разное
-    url: git@github.com:brotherdetjr/deltabanana-collections.git
-    branch: main
-    path: misc
-  - title: Тест
-    url: git@github.com:brotherdetjr/deltabanana-collections.git
-    path: test
+persisted_config_link:
+  url: git@github.com:brotherdetjr/deltabanana-persisted.git
+  path: ru.yaml
