@@ -18,6 +18,9 @@ msgstr "✋ The bot is too busy now. Try again later!"
 msgid "collections"
 msgstr "📚 Collections"
 
+msgid "no_collections"
+msgstr "🚫 No available collections. Speak to chatbot admin {admin}"
+
 msgid "select_collection"
 msgstr "✋ Choose collection first! /start"
 

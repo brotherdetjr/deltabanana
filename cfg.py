@@ -39,12 +39,19 @@ class Config:
     bot_poll_interval_seconds: int = field(default=2)
     active_user_sessions: ActiveUserSessions = field(default_factory=ActiveUserSessions)
     nudge: Nudge = field(default_factory=Nudge)
+    admin: str = field(default='')
 
 
 # noinspection PyDataclass
 @dataclass(frozen=True, kw_only=True)
 class CollectionDescriptor(GitFileLink):
     title: str
+    restricted: bool = field(default=True)
+
+
+@dataclass(frozen=True)
+class PersistedConfig:
+    collections: list[CollectionDescriptor]
 
 
 def load(file, data_class: type[T]) -> T:

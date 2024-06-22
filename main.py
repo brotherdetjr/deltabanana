@@ -4,7 +4,6 @@ import gettext
 import json
 import logging.config
 import pathlib
-from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 from typing import Final
@@ -17,7 +16,7 @@ from telegram.ext import ContextTypes, Application, CommandHandler, JobQueue, Ca
     MessageHandler
 
 from caches import LimitedTtlCache, CapacityException
-from cfg import config, CollectionDescriptor
+from cfg import config, PersistedConfig
 from gitsource import GitSource, GitFileLink
 from state import UserState, Collection, Entry
 
@@ -25,11 +24,6 @@ logging.config.fileConfig('logging.conf')
 logger = logging.getLogger(__name__)
 
 NEXT_BUTTON: Final[ReplyKeyboardMarkup] = ReplyKeyboardMarkup([[KeyboardButton('/next')]], resize_keyboard=True)
-
-
-@dataclass(frozen=True)
-class PersistedConfig:
-    collections: list[CollectionDescriptor]
 
 
 class Main:
@@ -86,17 +80,20 @@ class Main:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.user_state(update).reset()
         collections_keyboard: list[list[InlineKeyboardButton]] = []
-        for idx, ignore in enumerate(self.persisted_config.collections):
+        for idx, descriptor in enumerate(self.persisted_config.collections):
+            # TODO fully-fledged authorisation check
+            if descriptor.restricted:
+                continue
             try:
                 data = json.dumps({'type': 'collection_idx', 'value': idx})
                 button_markup = [InlineKeyboardButton(self.get_collection(idx).decorated_title, callback_data=data)]
                 collections_keyboard.append(button_markup)
             except FileNotFoundError:
                 logger.error(f'Failed to load collection #{idx} from config file', exc_info=True)
-        reply_markup = InlineKeyboardMarkup(collections_keyboard)
         await asyncio.gather(
             self.remove_chat_buttons(update.effective_chat.id),
-            update.message.reply_text(_('collections'), reply_markup=reply_markup)
+            update.message.reply_text(_('collections'), reply_markup=(InlineKeyboardMarkup(collections_keyboard))) \
+                if collections_keyboard else update.message.reply_text(_('no_collections').format(admin=config.admin))
         )
 
     # noinspection PyUnusedLocal
