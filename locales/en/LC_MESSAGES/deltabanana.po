@@ -19,7 +19,8 @@ msgid "collections"
 msgstr "📚 Collections"
 
 msgid "no_collections"
-msgstr "🚫 No available collections. Speak to chatbot admin {admin}"
+msgstr "🚫 No available collections. Speak to chatbot admin{admin}.\n\
+You may need to tell them your Telegram ID: {id}"
 
 msgid "select_collection"
 msgstr "✋ Choose collection first! /start"
