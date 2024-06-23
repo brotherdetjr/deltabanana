@@ -93,9 +93,11 @@ class Main:
         await asyncio.gather(
             self.remove_chat_buttons(update.effective_chat.id),
             update.message.reply_text(_('collections'), reply_markup=(InlineKeyboardMarkup(collections_keyboard))) \
-                if collections_keyboard else update.message.reply_text(_('no_collections').format(
-                    admin=' ' + config.admin if config.admin else '',
-                    id=update.effective_user.id)
+                if collections_keyboard else update.message.reply_text(
+                    _('no_collections').format(
+                        admin=' ' + config.admin if config.admin else '',
+                        id=update.effective_user.id
+                    )
                 )
         )
 
